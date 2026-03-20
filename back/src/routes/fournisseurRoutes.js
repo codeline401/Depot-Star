@@ -1,38 +1,33 @@
 const router = require("express").Router();
-const prisma = require("../prisma"); // Import the Prisma Client instance
+const prisma = require("../prisma");
 
 // GET tous les fournisseurs
-export const getAllFournisseurs = router.get("/", async (req, res) => {
+router.get("/", async (req, res) => {
   try {
     const fournisseurs = await prisma.fournisseur.findMany({
-      include: { listeArticles: true }, // Inclure les données des articles associés à chaque fournisseur
+      include: { listeArticles: true },
     });
-    if (!fournisseurs) {
-      return res.status(404).json({ error: "fournisseurs not found." });
-    }
-
-    res.json(fournisseurs); // Envoyer les données des fournisseurs en réponse
+    res.json(fournisseurs);
   } catch (error) {
     console.error("Error fetching fournisseurs:", error);
     res
       .status(500)
-      .json({ error: "An error occurred while fetching the fournisseurs." });
+      .json({ error: "An error occurred while fetching fournisseurs." });
   }
 });
 
-// GET fournissuer par ID
-export const getFournisseurById = router.get("/:id", async (req, res) => {
-  const { id } = req.params; // Récupérer l'ID du fournisseur à partir des paramètres de la requête
+// GET fournisseur par ID
+router.get("/:id", async (req, res) => {
+  const { id } = req.params;
   try {
     const fournisseur = await prisma.fournisseur.findUnique({
-      where: { id: parseInt(id) }, // Trouver le fournisseur avec l'ID spécifié
-      include: { listeArticles: true }, // Inclure les données des articles associés au fournisseur
+      where: { id: parseInt(id) },
+      include: { listeArticles: true },
     });
     if (!fournisseur) {
-      return res.status(404).json({ error: "fournisseur not found." });
+      return res.status(404).json({ error: "Fournisseur not found." });
     }
-
-    res.json(fournisseur); // Envoyer les données du fournisseur en réponse
+    res.json(fournisseur);
   } catch (error) {
     console.error("Error fetching fournisseur:", error);
     res
@@ -42,18 +37,13 @@ export const getFournisseurById = router.get("/:id", async (req, res) => {
 });
 
 // POST créer un nouveau fournisseur
-export const createFournisseur = router.post("/", async (req, res) => {
-  const { data } = req.body; // Récupérer les données du fournisseur à partir du corps de la requête
+router.post("/", async (req, res) => {
   try {
+    const { nom, adresse, telephone } = req.body;
     const fournisseur = await prisma.fournisseur.create({
-      data: {
-        nom: data.nom,
-        adresse: data.adresse,
-        email: data.email,
-        telephone: data.telephone,
-      },
+      data: { nom, adresse, telephone },
     });
-    res.json(fournisseur); // Envoyer les données du fournisseur créé en réponse
+    res.status(201).json(fournisseur);
   } catch (error) {
     console.error("Error creating fournisseur:", error);
     res
@@ -62,25 +52,20 @@ export const createFournisseur = router.post("/", async (req, res) => {
   }
 });
 
-//PUT mettre à jour un fournisseur
-export const updateFournisseur = router.put("/:id", async (req, res) => {
+// PUT mettre à jour un fournisseur
+router.put("/:id", async (req, res) => {
   const { id } = req.params;
-  const { data } = req.body; // Récupérer les données mises à jour du fournisseur à partir du corps de la requête
   try {
+    const { nom, adresse, telephone } = req.body;
     const fournisseur = await prisma.fournisseur.update({
-      where: { id: parseInt(id) }, // Trouver le fournisseur avec l'ID spécifié
-      data: {
-        nom: data.nom,
-        adresse: data.adresse,
-        email: data.email,
-        telephone: data.telephone,
-      },
+      where: { id: parseInt(id) },
+      data: { nom, adresse, telephone },
     });
-    if (!fournisseur) {
-      return res.status(404).json({ error: "fournisseur not found." });
-    }
-    res.json(fournisseur); // Envoyer les données du fournisseur mis à jour en réponse
+    res.json(fournisseur);
   } catch (error) {
+    if (error.code === "P2025") {
+      return res.status(404).json({ error: "Fournisseur not found" });
+    }
     console.error("Error updating fournisseur:", error);
     res
       .status(500)
@@ -89,17 +74,11 @@ export const updateFournisseur = router.put("/:id", async (req, res) => {
 });
 
 // DELETE supprimer un fournisseur
-export const deleteFournisseur = router.delete("/:id", async (req, res) => {
-  const { id } = req.params; // Récupérer l'ID du fournisseur à partir des paramètres de la requête
+router.delete("/:id", async (req, res) => {
+  const { id } = req.params;
   try {
-    const fournisseur = await prisma.fournisseur.delete({
-      where: { id: parseInt(id) }, // Trouver le fournisseur avec l'ID spécifié
-      include: { listeArticles: true }, // Inclure les données des articles associés au fournisseur
-    });
-    if (!fournisseur) {
-      return res.status(404).json({ error: "fournisseur not found." });
-    }
-    res.json(fournisseur); // Envoyer les données du fournisseur supprimé en réponse
+    await prisma.fournisseur.delete({ where: { id: parseInt(id) } });
+    res.json({ message: "Fournisseur deleted successfully." });
   } catch (error) {
     console.error("Error deleting fournisseur:", error);
     res
@@ -107,3 +86,5 @@ export const deleteFournisseur = router.delete("/:id", async (req, res) => {
       .json({ error: "An error occurred while deleting the fournisseur." });
   }
 });
+
+module.exports = router;
