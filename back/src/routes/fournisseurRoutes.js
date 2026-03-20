@@ -63,6 +63,9 @@ router.put("/:id", async (req, res) => {
     });
     res.json(fournisseur);
   } catch (error) {
+    if (error.code === "P2025") {
+      return res.status(404).json({ error: "Fournisseur not found" });
+    }
     console.error("Error updating fournisseur:", error);
     res
       .status(500)

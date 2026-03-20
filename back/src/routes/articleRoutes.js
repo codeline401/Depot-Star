@@ -39,7 +39,10 @@ router.get("/:id", async (req, res) => {
 // POST créer un nouvel article
 router.post("/", async (req, res) => {
   try {
-    const article = await prisma.article.create({ data: req.body });
+    const { nom, prix, quantiteStock, bottleType, aConsigner, fournisseurId } = req.body;
+    const article = await prisma.article.create({
+      data: { nom, prix, ["quantitéStock"]: quantiteStock, bottleType, aConsigner, fournisseurId },
+    });
     res.status(201).json(article);
   } catch (error) {
     console.error("Error creating article:", error);
@@ -57,7 +60,7 @@ router.put("/:id", async (req, res) => {
       req.body;
     const article = await prisma.article.update({
       where: { id: parseInt(id) },
-      data: { nom, prix, quantiteStock, bottleType, aConsigner, fournisseurId },
+      data: { nom, prix, ["quantitéStock"]: quantiteStock, bottleType, aConsigner, fournisseurId },
     });
     res.json(article);
   } catch (error) {
