@@ -39,7 +39,10 @@ router.get("/:id", async (req, res) => {
 // POST créer un nouveau fournisseur
 router.post("/", async (req, res) => {
   try {
-    const fournisseur = await prisma.fournisseur.create({ data: req.body });
+    const { nom, adresse, telephone } = req.body;
+    const fournisseur = await prisma.fournisseur.create({
+      data: { nom, adresse, telephone },
+    });
     res.status(201).json(fournisseur);
   } catch (error) {
     console.error("Error creating fournisseur:", error);
@@ -53,9 +56,10 @@ router.post("/", async (req, res) => {
 router.put("/:id", async (req, res) => {
   const { id } = req.params;
   try {
+    const { nom, adresse, telephone } = req.body;
     const fournisseur = await prisma.fournisseur.update({
       where: { id: parseInt(id) },
-      data: req.body,
+      data: { nom, adresse, telephone },
     });
     res.json(fournisseur);
   } catch (error) {

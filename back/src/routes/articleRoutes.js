@@ -53,9 +53,11 @@ router.post("/", async (req, res) => {
 router.put("/:id", async (req, res) => {
   const { id } = req.params;
   try {
+    const { nom, prix, quantiteStock, bottleType, aConsigner, fournisseurId } =
+      req.body;
     const article = await prisma.article.update({
       where: { id: parseInt(id) },
-      data: req.body,
+      data: { nom, prix, quantiteStock, bottleType, aConsigner, fournisseurId },
     });
     res.json(article);
   } catch (error) {

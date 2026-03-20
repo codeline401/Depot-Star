@@ -2,16 +2,25 @@ const router = require("express").Router();
 const prisma = require("../prisma");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
+const { authMiddleware, adminMiddleware } = require("../middleware/auth");
 
-const JWT_SECRET = process.env.JWT_SECRET || "change_this_secret";
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error("JWT_SECRET environment variable is required");
+}
 
 // POST inscription d'un nouvel utilisateur
 router.post("/register", async (req, res) => {
   try {
-    const { nom, prenom, alias, mdp, role } = req.body;
+    const { nom, prenom, alias, mdp } = req.body;
+
+    if (!nom || !prenom || !alias || !mdp) {
+      return res.status(400).json({ error: "All fields are required." });
+    }
+
     const hashmdp = await bcrypt.hash(mdp, 10);
     const user = await prisma.user.create({
-      data: { nom, prenom, alias, mdp: hashmdp, role },
+      data: { nom, prenom, alias, mdp: hashmdp },
     });
     const { mdp: _, ...userSafe } = user;
     res.status(201).json(userSafe);
@@ -50,8 +59,8 @@ router.post("/login", async (req, res) => {
   }
 });
 
-// GET tous les users (sans mot de passe)
-router.get("/", async (req, res) => {
+// GET tous les users (sans mot de passe) — admin seulement
+router.get("/", authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const users = await prisma.user.findMany({
       select: { id: true, nom: true, prenom: true, alias: true, role: true },
