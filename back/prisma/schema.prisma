@@ -1,0 +1,48 @@
+generator client {
+    provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url      = env("DATABASE_URL")
+  // uncomment next line if you use Prisma <5.10
+  // directUrl = env("DATABASE_URL_UNPOOLED")
+}
+
+enum UserRole {
+    ADMIN 
+    SELLER
+}
+
+enum BottleType {
+    PLASTIQUE
+    VERRE
+}
+
+model User {
+    id Int @id @default(autoincrement())
+    nom String
+    prenom String
+    alias String @unique
+    mdp String // Stockage du mot de passe haché
+    role UserRole @default(SELLER)
+}
+
+model Fournisseur {
+    id Int @id @default(autoincrement())
+    nom String
+    adresse String
+    telephone String
+    listeArticles Article[] // Relation avec les articles fournis
+}
+
+model Article{
+    id Int @id @default(autoincrement())
+    nom String
+    prix Float
+    quantitéStock Int
+    bottleType BottleType
+    aConsigner Boolean @default(false)
+    fournisseurId Int
+    fournisseur Fournisseur @relation(fields: [fournisseurId], references: [id]) // Relation avec le fournisseur
+}
