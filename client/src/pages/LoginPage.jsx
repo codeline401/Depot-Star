@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { login } from "../api/userService";
+import { SignUpIcon } from "lucide-react";
 
 function LoginPage() {
   const navigate = useNavigate(); // Hook pour la navigation programmatique
@@ -81,7 +82,7 @@ function LoginPage() {
               </div>
             )}
 
-            <div className="form-control mt-4">
+            <div className="form-control mt-4 space-x-2">
               <button
                 className={`btn btn-primary ${loading ? "loading" : ""}`}
                 type="submit"
@@ -92,6 +93,10 @@ function LoginPage() {
                 ) : (
                   "Se connecter"
                 )}
+              </button>
+
+              <button className="btn btn-ghost btn-sm">
+                <Link to="/register">Créer un compte</Link>
               </button>
             </div>
           </form>

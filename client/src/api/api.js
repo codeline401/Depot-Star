@@ -26,13 +26,13 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    const hadAuthheader = Boolean(error.config?.header?.Authorization); // Vérifie si la requête avait un en-tête Authorization
+    const hadAuthheader = Boolean(error.config?.headers?.Authorization); // Vérifie si la requête avait un en-tête Authorization
 
     if (error.response?.status === 401 && hadAuthheader) {
       // Si la réponse est 401 Unauthorized et que la requête avait un en-tête Authorization
       localStorage.removeItem("token"); // Supprime le token JWT du localStorage
       localStorage.removeItem("user"); // Supprime les infos utilisateur du localStorage
-      window.location.replace = "/login"; // Redirige vers la page de login
+      window.location.replace("/login"); // Redirige vers la page de login
     }
     return Promise.reject(error); // Gestion des erreurs
   },

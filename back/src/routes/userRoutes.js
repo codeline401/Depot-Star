@@ -21,6 +21,12 @@ router.post("/register", authMiddleware, adminMiddleware, async (req, res) => {
         .json({ error: "nom, prenom, alias et mdp sont requis." });
     }
 
+    if (mdp.length < 6) {
+      return res.status(400).json({
+        error: "Le mot de passe doit contenir au moins 6 caractères.",
+      });
+    }
+
     const hashmdp = await bcrypt.hash(mdp, 10); // Hache le mot de passe avec bcrypt (10 rounds de salage)
     const user = await prisma.user.create({
       // Crée un nouvel utilisateur dans la base de données avec Prisma
@@ -85,7 +91,7 @@ router.post("/change-password", authMiddleware, async (req, res) => {
 
     const currentUser = await prisma.user.findUnique({
       // Récupère l'utilisateur actuel pour vérifier que le nouveau mot de passe est différent de l'ancien
-      where: { id: res.user.id },
+      where: { id: req.user.id }, //
       select: { mdp: true },
     });
     if (!currentUser) {
