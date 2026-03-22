@@ -6,6 +6,7 @@ import { Routes, Route, useLocation } from "react-router-dom";
 import LoginPage from "./pages/LoginPage";
 import ProtecteRoute from "./components/ProtecteRoute";
 import ChangePasswordPage from "./pages/ChangePasswordPage";
+import RegisterPage from "./pages/RegisterPage";
 
 import "./App.css";
 import Header from "./components/header";
@@ -13,7 +14,9 @@ import Header from "./components/header";
 function App() {
   const location = useLocation(); // Hook pour obtenir la localisation actuelle (URL) de l'application
   const isLoginPage =
-    location.pathname === "/login" || location.pathname === "/change-password"; // Vérifie si la page actuelle est la page de login ou de changement de mot de passe
+    location.pathname === "/login" ||
+    location.pathname === "/change-password" ||
+    location.pathname === "/register"; // Vérifie si la page actuelle est la page de login ou de changement de mot de passe
   return (
     <>
       {!isLoginPage && <Header />}{" "}
@@ -53,6 +56,14 @@ function App() {
         />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/change-password" element={<ChangePasswordPage />} />
+        <Route
+          path="/register"
+          element={
+            <ProtecteRoute>
+              <RegisterPage />
+            </ProtecteRoute>
+          }
+        />
         {/**Route to StockPage */}
         {/**Route to VentePage */}
       </Routes>

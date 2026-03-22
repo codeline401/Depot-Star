@@ -6,8 +6,10 @@ export async function login(alias, mdp) {
   return response.data; // { user, token }
 }
 
-export async function createUser(alias, mdp, role = "SELLER") {
+export async function createUser(nom, prenom, alias, mdp, role = "SELLER") {
   const response = await api.post("users/register", {
+    nom,
+    prenom,
     alias,
     mdp,
     role,

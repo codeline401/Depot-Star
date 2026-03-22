@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { login } from "../api/userService";
-import { SignUpIcon } from "lucide-react";
 
 function LoginPage() {
   const navigate = useNavigate(); // Hook pour la navigation programmatique
