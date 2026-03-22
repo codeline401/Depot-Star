@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { createUser } from "../api/userService";
 
@@ -16,16 +16,21 @@ function RegisterPage() {
   const [loading, setLoading] = useState(false); // État pour indiquer si une requête est en cours
 
   // Seul un admin peut accéder à cette page, on vérifie donc que l'utilisateur connecté est un admin
-  const user = (() => {
+  const user = useMemo(() => {
     try {
       return JSON.parse(localStorage.getItem("user") || "{}");
     } catch {
       return {};
     }
-  })();
+  }, []);
+
+  useEffect(() => {
+    if (user.role !== "ADMIN") {
+      navigate("/", { replace: true });
+    }
+  }, [user, navigate]);
 
   if (user.role !== "ADMIN") {
-    navigate("/", { replace: true });
     return null;
   }
 
