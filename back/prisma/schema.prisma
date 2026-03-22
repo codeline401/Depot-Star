@@ -26,6 +26,7 @@ model User {
     alias String @unique
     mdp String // Stockage du mot de passe haché
     role UserRole @default(SELLER)
+    mustChangePassword Boolean @default(true) // Indique si l'utilisateur doit changer son mot de passe à la première connexion
 }
 
 model Fournisseur {

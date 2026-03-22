@@ -1,0 +1,38 @@
+import axios from "axios";
+
+const api = axios.create({
+  baseURL: "http://localhost:3000/api",
+  headers: {
+    "Content-Type": "application/json",
+  },
+});
+
+// Injecte auto le token JWT à chaque requête
+api.interceptors.request.use(
+  (config) => {
+    // Interceptor pour ajouter le token JWT à chaque requête
+    const token = localStorage.getItem("token"); // Récupère le token JWT depuis le localStorage
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`; // Ajoute le token JWT à l'en-tête Authorization
+    }
+    return config; // Retourne la configuration de la requête
+  },
+  (error) => {
+    return Promise.reject(error); // Gestion des erreurs
+  },
+);
+
+// Redirige vers /login si le token est expiré ou invalide
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem("token"); // Supprime le token JWT du localStorage
+      localStorage.removeItem("user"); // Supprime les infos utilisateur du localStorage
+      window.location.href = "/login"; // Redirige vers la page de login
+    }
+    return Promise.reject(error); // Gestion des erreurs
+  },
+);
+
+export default api;

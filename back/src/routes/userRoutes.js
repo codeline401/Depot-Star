@@ -9,22 +9,32 @@ if (!JWT_SECRET) {
   throw new Error("JWT_SECRET environment variable is required");
 }
 
-// POST inscription d'un nouvel utilisateur
-router.post("/register", async (req, res) => {
+// POST créer un user - admin seuelement (alias + mpd temporaire)
+router.post("/register", authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const { nom, prenom, alias, mdp } = req.body;
+    const { alias, mdp, role } = req.body; // role optionnel, par défaut SELLER
 
-    if (!nom || !prenom || !alias || !mdp) {
-      return res.status(400).json({ error: "All fields are required." });
+    if (!alias || !mdp) {
+      // Vérifie que l'alias et le mot de passe sont fournis
+      return res.status(400).json({ error: "alias et mdp sont requis." });
     }
 
-    const hashmdp = await bcrypt.hash(mdp, 10);
+    const hashmdp = await bcrypt.hash(mdp, 10); // Hache le mot de passe avec bcrypt (10 rounds de salage)
     const user = await prisma.user.create({
-      data: { nom, prenom, alias, mdp: hashmdp },
+      // Crée un nouvel utilisateur dans la base de données avec Prisma
+      data: {
+        alias,
+        mdp: hashmdp,
+        role: role || "SELLER",
+        mustChangePassword: true,
+      },
     });
-    const { mdp: _, ...userSafe } = user;
+    const { mdp: _, ...userSafe } = user; // Exclut le champ mdp de l'objet user avant de le retourner
     res.status(201).json(userSafe);
   } catch (error) {
+    if (error.code === "P2002") {
+      return res.status(400).json({ error: "Alias déjà utilisé." }); // Gère l'erreur de contrainte d'unicité de Prisma lorsque l'alias est déjà pris
+    }
     console.error("Error registering user:", error);
     res
       .status(500)
@@ -56,6 +66,33 @@ router.post("/login", async (req, res) => {
   } catch (error) {
     console.error("Error logging in user:", error);
     res.status(500).json({ error: "An error occurred while logging in." });
+  }
+});
+
+// POST changer le mdp (première connexin ou reset)
+router.post("/change-password", authMiddleware, async (req, res) => {
+  try {
+    const { newMdp } = req.body;
+    if (!newMdp || newMdp.length < 6) {
+      return res
+        .status(400)
+        .json({
+          error: "Le nouveau mot de passe doit contenir au moins 6 caractères.",
+        });
+    }
+
+    const hash = await bcrypt.hash(newMdp, 10);
+    await prisma.user.update({
+      where: { id: req.user.id },
+      data: { mdp: hash, mustChangePassword: false },
+    });
+
+    res.json({ message: "Mot de passe changé avec succès." });
+  } catch (error) {
+    console.error("Error changing password:", error);
+    res
+      .status(500)
+      .json({ error: "An error occurred while changing the password." });
   }
 });
 
