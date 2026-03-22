@@ -12,17 +12,21 @@ if (!JWT_SECRET) {
 // POST créer un user - admin seuelement (alias + mpd temporaire)
 router.post("/register", authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const { alias, mdp, role } = req.body; // role optionnel, par défaut SELLER
+    const { nom, prenom, alias, mdp, role } = req.body; // role optionnel, par défaut SELLER
 
-    if (!alias || !mdp) {
+    if (!nom || !prenom || !alias || !mdp) {
       // Vérifie que l'alias et le mot de passe sont fournis
-      return res.status(400).json({ error: "alias et mdp sont requis." });
+      return res
+        .status(400)
+        .json({ error: "nom, prenom, alias et mdp sont requis." });
     }
 
     const hashmdp = await bcrypt.hash(mdp, 10); // Hache le mot de passe avec bcrypt (10 rounds de salage)
     const user = await prisma.user.create({
       // Crée un nouvel utilisateur dans la base de données avec Prisma
       data: {
+        nom,
+        prenom,
         alias,
         mdp: hashmdp,
         role: role || "SELLER",
@@ -74,11 +78,25 @@ router.post("/change-password", authMiddleware, async (req, res) => {
   try {
     const { newMdp } = req.body;
     if (!newMdp || newMdp.length < 6) {
-      return res
-        .status(400)
-        .json({
-          error: "Le nouveau mot de passe doit contenir au moins 6 caractères.",
-        });
+      return res.status(400).json({
+        error: "Le nouveau mot de passe doit contenir au moins 6 caractères.",
+      });
+    }
+
+    const currentUser = await prisma.user.findUnique({
+      // Récupère l'utilisateur actuel pour vérifier que le nouveau mot de passe est différent de l'ancien
+      where: { id: res.user.id },
+      select: { mdp: true },
+    });
+    if (!currentUser) {
+      return res.status(404).json({ error: "Utilisateur non trouvé." });
+    }
+
+    const isSamePassword = await bcrypt.compare(newMdp, currentUser.mdp); // Vérifie que le nouveau mot de passe n'est pas le même que l'ancien
+    if (isSamePassword) {
+      return res.status(400).json({
+        error: "Le nouveau mot de passe doit être différent de l'ancien.",
+      });
     }
 
     const hash = await bcrypt.hash(newMdp, 10);

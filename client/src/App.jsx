@@ -19,7 +19,14 @@ function App() {
       {!isLoginPage && <Header />}{" "}
       {/* Affiche le header uniquement si ce n'est pas la page de login */}
       <Routes>
-        <Route path="/" element={<DashBoard />} />
+        <Route
+          path="/"
+          element={
+            <ProtecteRoute>
+              <DashBoard />
+            </ProtecteRoute>
+          }
+        />
         <Route
           path="/stock"
           element={

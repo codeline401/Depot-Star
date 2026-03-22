@@ -7,7 +7,8 @@ if (!JWT_SECRET) {
 }
 
 function authMiddleware(req, res, next) {
-  const header = req.headers.authorization;
+  // Middleware d'authentification pour vérifier le token JWT dans les requêtes entrantes
+  const header = req.headers.authorization; //
   if (!header || !header.startsWith("Bearer ")) {
     return res.status(401).json({ error: "Authentication required" });
   }

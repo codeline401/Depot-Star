@@ -32,7 +32,7 @@ function ChangePasswordPage() {
 
       // Mettre à jour le user en local pour ne plus voir cette page
       const user = JSON.parse(localStorage.getItem("user") || "{}"); // Récupère les informations de l'utilisateur depuis le localStorage
-      localStorage.getItem(
+      localStorage.setItem(
         "user",
         JSON.stringify({ ...user, mustChangePassword: false }),
       ); // Met à jour le champ mustChangePassword de l'utilisateur dans le localStorage

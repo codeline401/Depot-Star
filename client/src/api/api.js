@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: "http://localhost:3000/api",
+  baseURL: import.meta.env.VITE_BASE_URL || "/api", // Utilise la variable d'environnement VITE_BASE_URL ou une URL par défaut
   headers: {
     "Content-Type": "application/json",
   },
@@ -26,10 +26,13 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    const hadAuthheader = Boolean(error.config?.header?.Authorization); // Vérifie si la requête avait un en-tête Authorization
+
+    if (error.response?.status === 401 && hadAuthheader) {
+      // Si la réponse est 401 Unauthorized et que la requête avait un en-tête Authorization
       localStorage.removeItem("token"); // Supprime le token JWT du localStorage
       localStorage.removeItem("user"); // Supprime les infos utilisateur du localStorage
-      window.location.href = "/login"; // Redirige vers la page de login
+      window.location.replace = "/login"; // Redirige vers la page de login
     }
     return Promise.reject(error); // Gestion des erreurs
   },

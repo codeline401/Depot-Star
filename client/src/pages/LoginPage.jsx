@@ -22,7 +22,7 @@ function LoginPage() {
       const data = await login(form.alias, form.mdp); // Appelle la fonction de login avec les données du formulaire
       localStorage.setItem("token", data.token); // Stocke le token JWT dans le localStorage
       localStorage.setItem("user", JSON.stringify(data.user)); // Stocke les informations de l'utilisateur dans le localStorage
-      navigate("/dsahboard"); // Redirige vers la page de dashboard après un login réussi
+      navigate(data.user.mustChangePassword ? "/change-password" : "/"); // Redirige vers la page de changement de mot de passe si nécessaire, sinon vers le dashboard
     } catch (error) {
       // axiow met l'erreur serveur dans error.response.data.error
       setError(error.response?.data?.error || "Connexion impossible"); // Affiche le message d'erreur retourné par le serveur ou un message générique
