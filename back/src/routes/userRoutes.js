@@ -13,6 +13,7 @@ if (!JWT_SECRET) {
 router.post("/register", authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const { nom, prenom, alias, mdp, role } = req.body; // role optionnel, par défaut SELLER
+    const allowedRoles = new Set(["ADMIN", "SELLER"]);
 
     if (!nom || !prenom || !alias || !mdp) {
       // Vérifie que l'alias et le mot de passe sont fournis
@@ -28,6 +29,12 @@ router.post("/register", authMiddleware, adminMiddleware, async (req, res) => {
     }
 
     const hashmdp = await bcrypt.hash(mdp, 10); // Hache le mot de passe avec bcrypt (10 rounds de salage)
+
+    if (role && !allowedRoles.has(role)) {
+      return res.status(400).json({
+        error: "Rôle invalide. Les rôles autorisés sont ADMIN et SELLER.",
+      });
+    }
     const user = await prisma.user.create({
       // Crée un nouvel utilisateur dans la base de données avec Prisma
       data: {
@@ -35,10 +42,11 @@ router.post("/register", authMiddleware, adminMiddleware, async (req, res) => {
         prenom,
         alias,
         mdp: hashmdp,
-        role: role || "SELLER",
+        role: role ?? "SELLER",
         mustChangePassword: true,
       },
     });
+
     const { mdp: _, ...userSafe } = user; // Exclut le champ mdp de l'objet user avant de le retourner
     res.status(201).json(userSafe);
   } catch (error) {
