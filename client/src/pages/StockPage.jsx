@@ -49,6 +49,8 @@ export default function StockPage() {
   const [deleteArticleModal, setDeleteArticleModal] = useState({
     open: false,
     article: null,
+    deleting: false,
+    error: null,
   });
   const [fournisseurModal, setFournisseurModal] = useState({
     open: false,
@@ -57,6 +59,8 @@ export default function StockPage() {
   const [deleteFournisseurModal, setDeleteFournisseurModal] = useState({
     open: false,
     fournisseur: null,
+    deleting: false,
+    error: null,
   });
 
   async function loadData() {
@@ -121,9 +125,23 @@ export default function StockPage() {
   }
 
   async function handleDeleteArticle() {
-    await deleteArticle(deleteArticleModal.article.id);
-    setDeleteArticleModal({ open: false, article: null });
-    loadData();
+    setDeleteArticleModal((prev) => ({ ...prev, deleting: true, error: null }));
+    try {
+      await deleteArticle(deleteArticleModal.article.id);
+      setDeleteArticleModal({
+        open: false,
+        article: null,
+        deleting: false,
+        error: null,
+      });
+      loadData();
+    } catch (err) {
+      setDeleteArticleModal((prev) => ({
+        ...prev,
+        deleting: false,
+        error: err?.response?.data?.error || "Erreur lors de la suppression.",
+      }));
+    }
   }
 
   // ── Fournisseur CRUD ──
@@ -138,9 +156,27 @@ export default function StockPage() {
   }
 
   async function handleDeleteFournisseur() {
-    await deleteFournisseur(deleteFournisseurModal.fournisseur.id);
-    setDeleteFournisseurModal({ open: false, fournisseur: null });
-    loadData();
+    setDeleteFournisseurModal((prev) => ({
+      ...prev,
+      deleting: true,
+      error: null,
+    }));
+    try {
+      await deleteFournisseur(deleteFournisseurModal.fournisseur.id);
+      setDeleteFournisseurModal({
+        open: false,
+        fournisseur: null,
+        deleting: false,
+        error: null,
+      });
+      loadData();
+    } catch (err) {
+      setDeleteFournisseurModal((prev) => ({
+        ...prev,
+        deleting: false,
+        error: err?.response?.data?.error || "Erreur lors de la suppression.",
+      }));
+    }
   }
 
   const filtered = articles.filter((a) => {
@@ -425,9 +461,18 @@ export default function StockPage() {
       />
       <ConfirmModal
         isOpen={deleteArticleModal.open}
-        onClose={() => setDeleteArticleModal({ open: false, article: null })}
+        onClose={() =>
+          setDeleteArticleModal({
+            open: false,
+            article: null,
+            deleting: false,
+            error: null,
+          })
+        }
         onConfirm={handleDeleteArticle}
         label={deleteArticleModal.article?.nom}
+        deleting={deleteArticleModal.deleting}
+        deleteError={deleteArticleModal.error}
       />
 
       {/* Modals fournisseurs */}
@@ -440,10 +485,17 @@ export default function StockPage() {
       <ConfirmModal
         isOpen={deleteFournisseurModal.open}
         onClose={() =>
-          setDeleteFournisseurModal({ open: false, fournisseur: null })
+          setDeleteFournisseurModal({
+            open: false,
+            fournisseur: null,
+            deleting: false,
+            error: null,
+          })
         }
         onConfirm={handleDeleteFournisseur}
         label={deleteFournisseurModal.fournisseur?.nom}
+        deleting={deleteFournisseurModal.deleting}
+        deleteError={deleteFournisseurModal.error}
       />
     </div>
   );

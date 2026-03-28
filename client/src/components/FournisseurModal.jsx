@@ -33,14 +33,15 @@ export default function FournisseurModal({
     e.preventDefault();
     setError("");
     const nom = form.nom?.trim();
+    const adresse = form.adresse?.trim();
     const telephone = form.telephone?.trim();
-    if (!nom || !telephone) {
-      setError("Nom et téléphone sont obligatoires.");
+    if (!nom || !adresse || !telephone) {
+      setError("Nom, adresse et téléphone sont obligatoires.");
       return;
     }
     setSaving(true);
     try {
-      await onSave({ ...form, nom, telephone });
+      await onSave({ ...form, nom, adresse, telephone });
     } catch (err) {
       setError(err?.response?.data?.error || "Une erreur est survenue.");
     } finally {
@@ -70,7 +71,7 @@ export default function FournisseurModal({
 
         <div className="form-control">
           <label className="label">
-            <span className="label-text">Adiresy</span>
+            <span className="label-text">Adiresy *</span>
           </label>
           <input
             name="adresse"
