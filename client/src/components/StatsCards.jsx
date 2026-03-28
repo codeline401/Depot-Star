@@ -1,15 +1,16 @@
 import { AlertTriangle, Package, TrendingUp, Truck } from "lucide-react";
 
 export default function StatsCards({ articles }) {
-  const totalValeur = articles.reduce(
+  const items = articles ?? [];
+  const totalValeur = items.reduce(
     (sum, a) => sum + a.prix * (a["quantitéStock"] ?? 0),
     0,
   );
-  const consigneCount = articles.filter((a) => a.aConsigner).length;
-  const ruptureCount = articles.filter(
+  const consigneCount = items.filter((a) => a.aConsigner).length;
+  const ruptureCount = items.filter(
     (a) => (a["quantitéStock"] ?? 0) === 0,
   ).length;
-  const lowStockCount = articles.filter(
+  const lowStockCount = items.filter(
     (a) => (a["quantitéStock"] ?? 0) > 0 && (a["quantitéStock"] ?? 0) <= 5,
   ).length;
 
@@ -20,7 +21,7 @@ export default function StatsCards({ articles }) {
           <Package className="size-8" />
         </div>
         <div className="stat-title">Références</div>
-        <div className="stat-value text-primary">{articles.length}</div>
+        <div className="stat-value text-primary">{items.length}</div>
         <div className="stat-desc">produits enregistrés</div>
       </div>
 

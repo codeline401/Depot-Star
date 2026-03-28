@@ -20,19 +20,28 @@ function getCurrentUser() {
   }
 }
 
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 function buildInvoiceHTML(invoice) {
   const lignesRows = invoice.lignes
     .map(
       (l) =>
         `<tr>
-          <td>${l.article.nom}</td>
-          <td style="text-align:center">${l.article.bottleType}</td>
+          <td>${escapeHtml(l.article.nom)}</td>
+          <td style="text-align:center">${escapeHtml(l.article.bottleType)}</td>
           <td style="text-align:center">${l.article.aConsigner ? "Oui (+" + CONSIGNE + " Ar)" : "Non"}</td>
           <td style="text-align:right">${l.quantite}</td>
           <td style="text-align:right">${l.prixUnitaire.toLocaleString("fr-FR")} Ar</td>
           <td style="text-align:right">${l.consigne > 0 ? l.consigne.toLocaleString("fr-FR") + " Ar" : "—"}</td>
           <td style="text-align:right"><strong>${l.prixTotal.toLocaleString("fr-FR")} Ar</strong></td>
-        </tr>`
+        </tr>`,
     )
     .join("");
 
@@ -40,7 +49,7 @@ function buildInvoiceHTML(invoice) {
 <html lang="fr">
 <head>
   <meta charset="UTF-8"/>
-  <title>Facture — ${invoice.clientNom}</title>
+  <title>Facture — ${escapeHtml(invoice.clientNom)}</title>
   <style>
     body { font-family: Arial, sans-serif; margin: 48px; color: #111; }
     h1 { font-size: 26px; margin: 0 0 4px; }
@@ -63,11 +72,11 @@ function buildInvoiceHTML(invoice) {
   <div class="meta-grid">
     <div class="meta-box">
       <div class="label">Client</div>
-      <p><strong>${invoice.clientNom}</strong></p>
+      <p><strong>${escapeHtml(invoice.clientNom)}</strong></p>
     </div>
     <div class="meta-box">
       <div class="label">Vendeur · Date</div>
-      <p>${invoice.vendeur}</p>
+      <p>${escapeHtml(invoice.vendeur)}</p>
       <p>${new Date(invoice.date).toLocaleString("fr-FR")}</p>
     </div>
   </div>
@@ -144,7 +153,7 @@ export default function VentePage() {
 
     if (selectedQty > available) {
       setError(
-        `Stock insuffisant pour "${article.nom}". Disponible : ${available}`
+        `Stock insuffisant pour "${article.nom}". Disponible : ${available}`,
       );
       return;
     }
@@ -155,7 +164,7 @@ export default function VentePage() {
         return prev.map((l) =>
           l.article.id === article.id
             ? { ...l, quantite: l.quantite + selectedQty }
-            : l
+            : l,
         );
       }
       return [...prev, { article, quantite: selectedQty }];
@@ -172,7 +181,9 @@ export default function VentePage() {
   }
 
   function ligneTotal(l) {
-    return (l.article.prix + (l.article.aConsigner ? CONSIGNE : 0)) * l.quantite;
+    return (
+      (l.article.prix + (l.article.aConsigner ? CONSIGNE : 0)) * l.quantite
+    );
   }
 
   const total = lignes.reduce((sum, l) => sum + ligneTotal(l), 0);
@@ -201,17 +212,24 @@ export default function VentePage() {
 
       setInvoice(result);
 
-      // Rafraîchir le stock
-      const updated = await getAllArticles();
-      setArticles(updated);
-
-      // Réinitialiser la commande
+      // Réinitialiser la commande immédiatement pour éviter les re-soumissions
       setLignes([]);
       setClientNom("");
       setSelectedArticleId("");
       setSelectedQty(1);
+
+      // Rafraîchir le stock (non-bloquant, échec non-fatal)
+      try {
+        const updated = await getAllArticles();
+        setArticles(updated);
+      } catch {
+        setError("Vente validée, mais le stock n'a pas pu être rafraîchi.");
+      }
     } catch (err) {
-      setError(err?.response?.data?.error || "Erreur lors de la validation de la vente.");
+      setError(
+        err?.response?.data?.error ||
+          "Erreur lors de la validation de la vente.",
+      );
     } finally {
       setProcessing(false);
     }
@@ -315,10 +333,7 @@ export default function VentePage() {
                 >
                   <option value="">— Choisir un article —</option>
                   {articles
-                    .filter(
-                      (a) =>
-                        a["quantitéStock"] - qtyInOrder(a.id) > 0
-                    )
+                    .filter((a) => a["quantitéStock"] - qtyInOrder(a.id) > 0)
                     .map((a) => (
                       <option key={a.id} value={a.id}>
                         {a.nom}
@@ -400,7 +415,8 @@ export default function VentePage() {
                         <td className="text-right tabular-nums">
                           {l.article.aConsigner ? (
                             <span className="text-warning">
-                              +{(CONSIGNE * l.quantite).toLocaleString("fr-FR")} Ar
+                              +{(CONSIGNE * l.quantite).toLocaleString("fr-FR")}{" "}
+                              Ar
                             </span>
                           ) : (
                             "—"
@@ -491,9 +507,7 @@ export default function VentePage() {
                     return (
                       <tr
                         key={a.id}
-                        className={
-                          a["quantitéStock"] === 0 ? "opacity-30" : ""
-                        }
+                        className={a["quantitéStock"] === 0 ? "opacity-30" : ""}
                       >
                         <td>
                           <div className="font-medium">{a.nom}</div>
@@ -523,8 +537,8 @@ export default function VentePage() {
                               remaining === 0
                                 ? "badge-error"
                                 : remaining <= 3
-                                ? "badge-warning"
-                                : "badge-success"
+                                  ? "badge-warning"
+                                  : "badge-success"
                             }`}
                           >
                             {remaining}
@@ -542,4 +556,3 @@ export default function VentePage() {
     </div>
   );
 }
-

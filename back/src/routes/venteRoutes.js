@@ -17,54 +17,65 @@ router.post("/", authMiddleware, async (req, res) => {
       .json({ error: "Au moins une ligne de commande est requise." });
   }
   for (const ligne of lignes) {
-    const qty = parseInt(ligne.quantite);
-    if (!ligne.articleId || isNaN(qty) || qty <= 0) {
-      return res
-        .status(400)
-        .json({
-          error: "Chaque ligne doit avoir un articleId et une quantite > 0.",
-        });
+    const articleId = parseInt(ligne.articleId, 10);
+    const qty = parseInt(ligne.quantite, 10);
+    if (
+      !Number.isInteger(articleId) ||
+      articleId <= 0 ||
+      isNaN(qty) ||
+      qty <= 0
+    ) {
+      return res.status(400).json({
+        error:
+          "Chaque ligne doit avoir un articleId entier positif et une quantite > 0.",
+      });
     }
   }
 
   try {
-    const articleIds = lignes.map((l) => parseInt(l.articleId));
+    // Aggregate quantities by articleId to handle duplicate lines
+    const qtyMap = {};
+    for (const ligne of lignes) {
+      const id = parseInt(ligne.articleId, 10);
+      qtyMap[id] = (qtyMap[id] || 0) + parseInt(ligne.quantite, 10);
+    }
+    const uniqueArticleIds = Object.keys(qtyMap).map(Number);
 
     const articles = await prisma.article.findMany({
-      where: { id: { in: articleIds } },
+      where: { id: { in: uniqueArticleIds } },
       include: { fournisseur: true },
     });
 
-    if (articles.length !== articleIds.length) {
+    if (articles.length !== uniqueArticleIds.length) {
       return res
         .status(404)
         .json({ error: "Un ou plusieurs articles introuvables." });
     }
 
-    // Vérification du stock pour chaque ligne
-    for (const ligne of lignes) {
-      const article = articles.find((a) => a.id === parseInt(ligne.articleId));
-      if (article["quantitéStock"] < parseInt(ligne.quantite)) {
+    // Vérification du stock (quantités agrégées)
+    for (const article of articles) {
+      const totalRequis = qtyMap[article.id];
+      if (article["quantitéStock"] < totalRequis) {
         return res.status(400).json({
-          error: `Stock insuffisant pour "${article.nom}". Disponible : ${article["quantitéStock"]}, Demandé : ${ligne.quantite}`,
+          error: `Stock insuffisant pour "${article.nom}". Disponible : ${article["quantitéStock"]}, Demandé : ${totalRequis}`,
         });
       }
     }
 
     // Décrémentation atomique des stocks
     await prisma.$transaction(
-      lignes.map((ligne) =>
+      uniqueArticleIds.map((id) =>
         prisma.article.update({
-          where: { id: parseInt(ligne.articleId) },
-          data: { ["quantitéStock"]: { decrement: parseInt(ligne.quantite) } },
+          where: { id },
+          data: { ["quantitéStock"]: { decrement: qtyMap[id] } },
         }),
       ),
     );
 
-    // Construction de la facture
-    const venteLignes = lignes.map((ligne) => {
-      const article = articles.find((a) => a.id === parseInt(ligne.articleId));
-      const quantite = parseInt(ligne.quantite);
+    // Construction de la facture (une ligne par article unique)
+    const venteLignes = uniqueArticleIds.map((id) => {
+      const article = articles.find((a) => a.id === id);
+      const quantite = qtyMap[id];
       const consigne = article.aConsigner ? CONSIGNE_SUPPLEMENT : 0;
       const prixTotal = (article.prix + consigne) * quantite;
       return {
@@ -93,11 +104,9 @@ router.post("/", authMiddleware, async (req, res) => {
     });
   } catch (error) {
     console.error("Erreur traitement vente:", error);
-    res
-      .status(500)
-      .json({
-        error: "Une erreur est survenue lors du traitement de la vente.",
-      });
+    res.status(500).json({
+      error: "Une erreur est survenue lors du traitement de la vente.",
+    });
   }
 });
 

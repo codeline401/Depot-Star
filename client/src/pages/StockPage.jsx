@@ -37,29 +37,77 @@ export default function StockPage() {
   const [articles, setArticles] = useState([]);
   const [fournisseurs, setFournisseurs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState("ALL");
   const [tab, setTab] = useState("articles");
 
-  const [articleModal, setArticleModal] = useState({ open: false, article: null });
-  const [deleteArticleModal, setDeleteArticleModal] = useState({ open: false, article: null });
-  const [fournisseurModal, setFournisseurModal] = useState({ open: false, fournisseur: null });
-  const [deleteFournisseurModal, setDeleteFournisseurModal] = useState({ open: false, fournisseur: null });
+  const [articleModal, setArticleModal] = useState({
+    open: false,
+    article: null,
+  });
+  const [deleteArticleModal, setDeleteArticleModal] = useState({
+    open: false,
+    article: null,
+  });
+  const [fournisseurModal, setFournisseurModal] = useState({
+    open: false,
+    fournisseur: null,
+  });
+  const [deleteFournisseurModal, setDeleteFournisseurModal] = useState({
+    open: false,
+    fournisseur: null,
+  });
 
   async function loadData() {
-    setLoading(true);
-    try {
-      const [arts, fours] = await Promise.all([getAllArticles(), getAllFournisseurs()]);
-      setArticles(arts);
-      setFournisseurs(fours);
-    } catch (err) {
-      console.error("Erreur chargement données:", err);
-    } finally {
-      setLoading(false);
+    const [artsResult, foursResult] = await Promise.allSettled([
+      getAllArticles(),
+      getAllFournisseurs(),
+    ]);
+    if (artsResult.status === "fulfilled") {
+      setArticles(artsResult.value);
+    } else {
+      console.error("Erreur chargement articles:", artsResult.reason);
+      setLoadError("Impossible de charger les articles.");
     }
+    if (foursResult.status === "fulfilled") {
+      setFournisseurs(foursResult.value);
+    } else {
+      console.error("Erreur chargement fournisseurs:", foursResult.reason);
+      setLoadError((prev) => prev ?? "Impossible de charger les fournisseurs.");
+    }
+    setLoading(false);
   }
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => {
+    let active = true;
+    async function init() {
+      const [artsResult, foursResult] = await Promise.allSettled([
+        getAllArticles(),
+        getAllFournisseurs(),
+      ]);
+      if (!active) return;
+      if (artsResult.status === "fulfilled") {
+        setArticles(artsResult.value);
+      } else {
+        console.error("Erreur chargement articles:", artsResult.reason);
+        setLoadError("Impossible de charger les articles.");
+      }
+      if (foursResult.status === "fulfilled") {
+        setFournisseurs(foursResult.value);
+      } else {
+        console.error("Erreur chargement fournisseurs:", foursResult.reason);
+        setLoadError(
+          (prev) => prev ?? "Impossible de charger les fournisseurs.",
+        );
+      }
+      setLoading(false);
+    }
+    init();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // ── Article CRUD ──
   async function handleSaveArticle(data) {
@@ -101,7 +149,9 @@ export default function StockPage() {
       filterType === "ALL" ||
       (filterType === "CONSIGNE" && a.aConsigner) ||
       (filterType === "RUPTURE" && a["quantitéStock"] === 0) ||
-      (filterType === "BAS" && a["quantitéStock"] > 0 && a["quantitéStock"] <= 5);
+      (filterType === "BAS" &&
+        a["quantitéStock"] > 0 &&
+        a["quantitéStock"] <= 5);
     return matchSearch && matchType;
   });
 
@@ -121,7 +171,8 @@ export default function StockPage() {
           <h1 className="text-2xl font-bold">Gestion du stock</h1>
           <p className="text-base-content/60 text-sm">
             {articles.length} référence{articles.length !== 1 ? "s" : ""} —{" "}
-            {fournisseurs.length} fournisseur{fournisseurs.length !== 1 ? "s" : ""}
+            {fournisseurs.length} fournisseur
+            {fournisseurs.length !== 1 ? "s" : ""}
           </p>
         </div>
         {isAdmin && (
@@ -135,27 +186,36 @@ export default function StockPage() {
         )}
       </div>
 
+      {/* Erreur chargement */}
+      {loadError && (
+        <div className="alert alert-error">
+          <span>{loadError}</span>
+        </div>
+      )}
+
       {/* Stats */}
       <StatsCards articles={articles} />
 
       {/* Tabs */}
       <div role="tablist" className="tabs tabs-lifted">
-        <a
+        <button
           role="tab"
+          aria-selected={tab === "articles"}
           className={`tab ${tab === "articles" ? "tab-active" : ""}`}
           onClick={() => setTab("articles")}
         >
           <Package className="size-4 mr-2" />
           Articles
-        </a>
-        <a
+        </button>
+        <button
           role="tab"
+          aria-selected={tab === "fournisseurs"}
           className={`tab ${tab === "fournisseurs" ? "tab-active" : ""}`}
           onClick={() => setTab("fournisseurs")}
         >
           <Truck className="size-4 mr-2" />
           Fournisseurs
-        </a>
+        </button>
       </div>
 
       {/* Articles tab */}
@@ -198,7 +258,10 @@ export default function StockPage() {
               <tbody>
                 {filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={isAdmin ? 8 : 7} className="text-center text-base-content/50 py-10">
+                    <td
+                      colSpan={isAdmin ? 8 : 7}
+                      className="text-center text-base-content/50 py-10"
+                    >
                       Aucun article trouvé
                     </td>
                   </tr>
@@ -209,14 +272,20 @@ export default function StockPage() {
                       <td>{a.prix.toFixed(2)} Ar</td>
                       <td>{a["quantitéStock"]}</td>
                       <td>
-                        <span className="badge badge-outline badge-sm">{a.bottleType}</span>
+                        <span className="badge badge-outline badge-sm">
+                          {a.bottleType}
+                        </span>
                       </td>
                       <td>{a.fournisseur?.nom ?? "—"}</td>
                       <td>
                         {a.aConsigner ? (
-                          <span className="badge badge-accent badge-sm">Oui</span>
+                          <span className="badge badge-accent badge-sm">
+                            Oui
+                          </span>
                         ) : (
-                          <span className="badge badge-ghost badge-sm">Non</span>
+                          <span className="badge badge-ghost badge-sm">
+                            Non
+                          </span>
                         )}
                       </td>
                       <td>
@@ -227,13 +296,22 @@ export default function StockPage() {
                           <div className="flex justify-end gap-1">
                             <button
                               className="btn btn-ghost btn-sm"
-                              onClick={() => setArticleModal({ open: true, article: a })}
+                              aria-label={`Modifier l'article ${a.nom}`}
+                              onClick={() =>
+                                setArticleModal({ open: true, article: a })
+                              }
                             >
                               <Pencil className="size-4" />
                             </button>
                             <button
                               className="btn btn-ghost btn-sm text-error"
-                              onClick={() => setDeleteArticleModal({ open: true, article: a })}
+                              aria-label={`Supprimer l'article ${a.nom}`}
+                              onClick={() =>
+                                setDeleteArticleModal({
+                                  open: true,
+                                  article: a,
+                                })
+                              }
                             >
                               <Trash2 className="size-4" />
                             </button>
@@ -256,7 +334,9 @@ export default function StockPage() {
             <div className="flex justify-end">
               <button
                 className="btn btn-primary gap-2"
-                onClick={() => setFournisseurModal({ open: true, fournisseur: null })}
+                onClick={() =>
+                  setFournisseurModal({ open: true, fournisseur: null })
+                }
               >
                 <Plus className="size-4" />
                 Nouveau fournisseur
@@ -278,7 +358,10 @@ export default function StockPage() {
               <tbody>
                 {fournisseurs.length === 0 ? (
                   <tr>
-                    <td colSpan={isAdmin ? 5 : 4} className="text-center text-base-content/50 py-10">
+                    <td
+                      colSpan={isAdmin ? 5 : 4}
+                      className="text-center text-base-content/50 py-10"
+                    >
                       Aucun fournisseur enregistré
                     </td>
                   </tr>
@@ -298,13 +381,25 @@ export default function StockPage() {
                           <div className="flex justify-end gap-1">
                             <button
                               className="btn btn-ghost btn-sm"
-                              onClick={() => setFournisseurModal({ open: true, fournisseur: f })}
+                              aria-label={`Modifier le fournisseur ${f.nom}`}
+                              onClick={() =>
+                                setFournisseurModal({
+                                  open: true,
+                                  fournisseur: f,
+                                })
+                              }
                             >
                               <Pencil className="size-4" />
                             </button>
                             <button
                               className="btn btn-ghost btn-sm text-error"
-                              onClick={() => setDeleteFournisseurModal({ open: true, fournisseur: f })}
+                              aria-label={`Supprimer le fournisseur ${f.nom}`}
+                              onClick={() =>
+                                setDeleteFournisseurModal({
+                                  open: true,
+                                  fournisseur: f,
+                                })
+                              }
                             >
                               <Trash2 className="size-4" />
                             </button>
@@ -344,7 +439,9 @@ export default function StockPage() {
       />
       <ConfirmModal
         isOpen={deleteFournisseurModal.open}
-        onClose={() => setDeleteFournisseurModal({ open: false, fournisseur: null })}
+        onClose={() =>
+          setDeleteFournisseurModal({ open: false, fournisseur: null })
+        }
         onConfirm={handleDeleteFournisseur}
         label={deleteFournisseurModal.fournisseur?.nom}
       />

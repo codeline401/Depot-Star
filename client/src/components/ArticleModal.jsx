@@ -53,7 +53,14 @@ export default function ArticleModal({
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
-    if (!form.nom || !form.prix || !form.quantiteStock || !form.fournisseurId) {
+    if (
+      !form.nom ||
+      form.prix === "" ||
+      form.prix == null ||
+      form.quantiteStock === "" ||
+      form.quantiteStock == null ||
+      !form.fournisseurId
+    ) {
       setError("Tous les champs obligatoires doivent être remplis.");
       return;
     }

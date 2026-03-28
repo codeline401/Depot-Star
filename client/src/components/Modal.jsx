@@ -19,6 +19,7 @@ export default function Modal({ isOpen, onClose, title, children }) {
           type="button"
           className="btn btn-sm btn-circle btn-ghost absolute right-3 top-3"
           onClick={onClose}
+          aria-label="Fermer"
         >
           <X className="size-4" />
         </button>

@@ -32,13 +32,15 @@ export default function FournisseurModal({
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
-    if (!form.nom || !form.telephone) {
+    const nom = form.nom?.trim();
+    const telephone = form.telephone?.trim();
+    if (!nom || !telephone) {
       setError("Nom et téléphone sont obligatoires.");
       return;
     }
     setSaving(true);
     try {
-      await onSave(form);
+      await onSave({ ...form, nom, telephone });
     } catch (err) {
       setError(err?.response?.data?.error || "Une erreur est survenue.");
     } finally {
