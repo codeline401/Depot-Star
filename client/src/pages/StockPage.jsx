@@ -346,6 +346,8 @@ export default function StockPage() {
                                 setDeleteArticleModal({
                                   open: true,
                                   article: a,
+                                  deleting: false,
+                                  error: null,
                                 })
                               }
                             >
@@ -434,6 +436,8 @@ export default function StockPage() {
                                 setDeleteFournisseurModal({
                                   open: true,
                                   fournisseur: f,
+                                  deleting: false,
+                                  error: null,
                                 })
                               }
                             >
