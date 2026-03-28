@@ -1,5 +1,6 @@
 const router = require("express").Router();
 const prisma = require("../prisma");
+const { authMiddleware, adminMiddleware } = require("../middleware/auth");
 
 // GET tous les articles
 router.get("/", async (req, res) => {
@@ -36,8 +37,8 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-// POST créer un nouvel article
-router.post("/", async (req, res) => {
+// POST créer un nouvel article (admin seulement)
+router.post("/", authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const { nom, prix, quantiteStock, bottleType, aConsigner, fournisseurId } = req.body;
     const article = await prisma.article.create({
@@ -52,8 +53,8 @@ router.post("/", async (req, res) => {
   }
 });
 
-// PUT update article by ID
-router.put("/:id", async (req, res) => {
+// PUT update article by ID (admin seulement)
+router.put("/:id", authMiddleware, adminMiddleware, async (req, res) => {
   const { id } = req.params;
   try {
     const { nom, prix, quantiteStock, bottleType, aConsigner, fournisseurId } =
@@ -71,8 +72,8 @@ router.put("/:id", async (req, res) => {
   }
 });
 
-// DELETE suppr article by ID
-router.delete("/:id", async (req, res) => {
+// DELETE suppr article by ID (admin seulement)
+router.delete("/:id", authMiddleware, adminMiddleware, async (req, res) => {
   const { id } = req.params;
   try {
     await prisma.article.delete({ where: { id: parseInt(id) } });

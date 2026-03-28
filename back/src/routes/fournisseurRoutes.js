@@ -1,8 +1,9 @@
 const router = require("express").Router();
 const prisma = require("../prisma");
+const { authMiddleware, adminMiddleware } = require("../middleware/auth");
 
 // GET tous les fournisseurs
-router.get("/", async (req, res) => {
+router.get("/", authMiddleware, async (req, res) => {
   try {
     const fournisseurs = await prisma.fournisseur.findMany({
       include: { listeArticles: true },
@@ -17,7 +18,7 @@ router.get("/", async (req, res) => {
 });
 
 // GET fournisseur par ID
-router.get("/:id", async (req, res) => {
+router.get("/:id", authMiddleware, async (req, res) => {
   const { id } = req.params;
   try {
     const fournisseur = await prisma.fournisseur.findUnique({
@@ -37,7 +38,7 @@ router.get("/:id", async (req, res) => {
 });
 
 // POST créer un nouveau fournisseur
-router.post("/", async (req, res) => {
+router.post("/", authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const { nom, adresse, telephone } = req.body;
     const fournisseur = await prisma.fournisseur.create({
@@ -53,7 +54,7 @@ router.post("/", async (req, res) => {
 });
 
 // PUT mettre à jour un fournisseur
-router.put("/:id", async (req, res) => {
+router.put("/:id", authMiddleware, adminMiddleware, async (req, res) => {
   const { id } = req.params;
   try {
     const { nom, adresse, telephone } = req.body;
@@ -74,7 +75,7 @@ router.put("/:id", async (req, res) => {
 });
 
 // DELETE supprimer un fournisseur
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", authMiddleware, adminMiddleware, async (req, res) => {
   const { id } = req.params;
   try {
     await prisma.fournisseur.delete({ where: { id: parseInt(id) } });
