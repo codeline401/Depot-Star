@@ -50,6 +50,12 @@ router.post("/", authMiddleware, adminMiddleware, async (req, res) => {
       fournisseurId,
     } = req.body; // Récupère les données de l'article à créer depuis le corps de la requête
 
+    if (typeof aConsigner !== "boolean") {
+      return res
+        .status(400)
+        .json({ error: "aConsigner doit être un booléen." }); // Valide que aConsigner est un booléen
+    }
+
     const normalizePriceConsigne = aConsigner ? Number(prixConsigne ?? 0) : 0; // Si l'article est à consigner, utilise le prix de consigne fourni ou 0 par défaut, sinon force à 0
     if (
       !Number.isFinite(normalizePriceConsigne) ||

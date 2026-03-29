@@ -83,7 +83,13 @@ function DashBoard() {
   useEffect(() => {
     getDashboardStats()
       .then(setStats)
-      .catch(() => setError("Impossible de charger le dashboard."))
+      .catch((err) =>
+        setError(
+          err.response?.status === 401
+            ? "Accès refusé au DashBoard."
+            : "Impossible de charger le Dashboard.",
+        ),
+      )
       .finally(() => setLoading(false));
   }, []);
 
@@ -253,8 +259,12 @@ function DashBoard() {
                 interval={4}
               />
               <YAxis
-                tick={{ fontSize: 11 }}
-                tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
+                tick={{ fontSize: 11 }} // Réduit la taille des ticks de l'axe Y pour une meilleure lisibilité
+                tickFormatter={(v) =>
+                  v < 1000 // Affiche les valeurs inférieures à 1000 normalement, sinon en format "k" avec une décimale
+                    ? `${v}`
+                    : `${(v / 1000).toLocaleString("fr-FR", { maximumFractionDigits: 1 })}k`
+                }
               />
               <Tooltip
                 formatter={(v) => [fmt(v), "CA"]}

@@ -41,7 +41,7 @@ router.get("/:id", authMiddleware, async (req, res) => {
 });
 
 // POST créer un client (auth)
-router.post("/", authMiddleware, async (req, res) => {
+router.post("/", authMiddleware, adminMiddleware, async (req, res) => {
   const nomT = typeof req.body.nom === "string" ? req.body.nom.trim() : "";
   const adresseT =
     typeof req.body.adresse === "string" ? req.body.adresse.trim() : "";
@@ -64,7 +64,7 @@ router.post("/", authMiddleware, async (req, res) => {
 });
 
 // PUT modifier un client (auth)
-router.put("/:id", authMiddleware, async (req, res) => {
+router.put("/:id", authMiddleware, adminMiddleware, async (req, res) => {
   const id = parseInt(req.params.id, 10); // Convertit l'ID du client depuis les paramètres de la requête en entier
   if (!Number.isInteger(id) || id <= 0) {
     // Valide que l'ID est un entier positif
