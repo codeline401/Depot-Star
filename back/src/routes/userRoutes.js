@@ -75,7 +75,7 @@ router.post("/login", async (req, res) => {
       return res.status(401).json({ error: "Identifiants invalides" });
     }
 
-    const token = jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, {
+    const token = jwt.sign({ id: user.id, role: user.role, alias: user.alias }, JWT_SECRET, {
       expiresIn: "8h",
     });
 

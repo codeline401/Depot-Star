@@ -1,15 +1,53 @@
 const router = require("express").Router();
 const prisma = require("../prisma");
-const { authMiddleware } = require("../middleware/auth");
+const { authMiddleware, adminMiddleware } = require("../middleware/auth");
 
-const CONSIGNE_SUPPLEMENT = 700;
+// GET toutes les ventes (admin uniquement)
+router.get("/", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const ventes = await prisma.vente.findMany({
+      include: { client: true, lignes: true },
+      orderBy: { date: "desc" },
+    });
+    res.json(ventes);
+  } catch (error) {
+    console.error("Erreur chargement ventes:", error);
+    res
+      .status(500)
+      .json({ error: "Erreur lors de la récupération des ventes." });
+  }
+});
+
+// GET une vente par ID (auth)
+router.get("/:id", authMiddleware, async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ error: "id invalide." });
+  }
+  try {
+    const vente = await prisma.vente.findUnique({
+      where: { id },
+      include: { client: true, lignes: true },
+    });
+    if (!vente) return res.status(404).json({ error: "Vente introuvable." });
+    res.json(vente);
+  } catch (error) {
+    console.error("Erreur chargement vente:", error);
+    res
+      .status(500)
+      .json({ error: "Erreur lors de la récupération de la vente." });
+  }
+});
 
 // POST traiter une vente (tout utilisateur authentifié)
 router.post("/", authMiddleware, async (req, res) => {
-  const { clientNom, lignes } = req.body;
+  const { clientId, lignes } = req.body;
 
-  if (!clientNom || typeof clientNom !== "string" || !clientNom.trim()) {
-    return res.status(400).json({ error: "Le nom du client est requis." });
+  const parsedClientId = parseInt(clientId, 10);
+  if (!Number.isInteger(parsedClientId) || parsedClientId <= 0) {
+    return res
+      .status(400)
+      .json({ error: "clientId doit être un entier positif." });
   }
   if (!Array.isArray(lignes) || lignes.length === 0) {
     return res
@@ -33,7 +71,13 @@ router.post("/", authMiddleware, async (req, res) => {
   }
 
   try {
-    // Aggregate quantities by articleId to handle duplicate lines
+    // Vérifier que le client existe
+    const client = await prisma.client.findUnique({
+      where: { id: parsedClientId },
+    });
+    if (!client) return res.status(404).json({ error: "Client introuvable." });
+
+    // Agréger les quantités par articleId (gère les doublons)
     const qtyMap = {};
     for (const ligne of lignes) {
       const id = parseInt(ligne.articleId, 10);
@@ -43,7 +87,6 @@ router.post("/", authMiddleware, async (req, res) => {
 
     const articles = await prisma.article.findMany({
       where: { id: { in: uniqueArticleIds } },
-      include: { fournisseur: true },
     });
 
     if (articles.length !== uniqueArticleIds.length) {
@@ -52,7 +95,7 @@ router.post("/", authMiddleware, async (req, res) => {
         .json({ error: "Un ou plusieurs articles introuvables." });
     }
 
-    // Vérification du stock (quantités agrégées)
+    // Vérification des stocks
     for (const article of articles) {
       const totalRequis = qtyMap[article.id];
       if (article["quantitéStock"] < totalRequis) {
@@ -62,51 +105,80 @@ router.post("/", authMiddleware, async (req, res) => {
       }
     }
 
-    // Décrémentation atomique des stocks
-    await prisma.$transaction(
-      uniqueArticleIds.map((id) =>
-        prisma.article.update({
-          where: { id },
-          data: { ["quantitéStock"]: { decrement: qtyMap[id] } },
-        }),
-      ),
-    );
-
-    // Construction de la facture (une ligne par article unique)
-    const venteLignes = uniqueArticleIds.map((id) => {
+    // Calcul des lignes de vente (snapshot des prix au moment de la vente)
+    const venteLignesData = uniqueArticleIds.map((id) => {
       const article = articles.find((a) => a.id === id);
       const quantite = qtyMap[id];
-      const consigne = article.aConsigner ? CONSIGNE_SUPPLEMENT : 0;
-      const prixTotal = (article.prix + consigne) * quantite;
+      const prixConsigneUnitaire = article.aConsigner
+        ? article.prixConsigne
+        : 0;
+      const prixTotal = (article.prix + prixConsigneUnitaire) * quantite;
       return {
-        article: {
-          id: article.id,
-          nom: article.nom,
-          prix: article.prix,
-          aConsigner: article.aConsigner,
-          bottleType: article.bottleType,
-        },
-        quantite,
+        articleId: article.id,
+        articleNom: article.nom,
         prixUnitaire: article.prix,
-        consigne: consigne * quantite,
+        prixConsigne: prixConsigneUnitaire,
+        quantite,
         prixTotal,
       };
     });
 
-    const total = venteLignes.reduce((sum, l) => sum + l.prixTotal, 0);
+    const total = venteLignesData.reduce((sum, l) => sum + l.prixTotal, 0);
 
-    res.status(200).json({
-      date: new Date().toISOString(),
-      clientNom: clientNom.trim(),
-      lignes: venteLignes,
+    // Transaction atomique : décrémentation stocks + création Vente + VenteLignes
+    const vente = await prisma.$transaction(
+      async (tx) => {
+        for (const id of uniqueArticleIds) {
+          await tx.article.update({
+            where: { id },
+            data: { ["quantitéStock"]: { decrement: qtyMap[id] } },
+          });
+        }
+        return tx.vente.create({
+          data: {
+            total,
+            vendeur: req.user.alias ?? `user#${req.user.id}`,
+            clientId: parsedClientId,
+            lignes: { create: venteLignesData },
+          },
+          include: { client: true, lignes: true },
+        });
+      },
+      { timeout: 20000 },
+    );
+
+    // Réponse enrichie pour le frontend (lignes avec snapshot article)
+    res.status(201).json({
+      id: vente.id,
+      date: vente.date.toISOString(),
+      client: vente.client,
+      vendeur: vente.vendeur,
+      lignes: venteLignesData.map((l) => {
+        const article = articles.find((a) => a.id === l.articleId);
+        return {
+          article: {
+            id: article.id,
+            nom: article.nom,
+            prix: article.prix,
+            aConsigner: article.aConsigner,
+            prixConsigne: article.prixConsigne,
+            bottleType: article.bottleType,
+          },
+          quantite: l.quantite,
+          prixUnitaire: l.prixUnitaire,
+          consigne: l.prixConsigne * l.quantite,
+          prixTotal: l.prixTotal,
+        };
+      }),
       total,
-      vendeur: req.user.alias,
     });
   } catch (error) {
     console.error("Erreur traitement vente:", error);
-    res.status(500).json({
-      error: "Une erreur est survenue lors du traitement de la vente.",
-    });
+    res
+      .status(500)
+      .json({
+        error: "Une erreur est survenue lors du traitement de la vente.",
+      });
   }
 });
 

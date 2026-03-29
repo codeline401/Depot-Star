@@ -40,9 +40,9 @@ router.get("/:id", async (req, res) => {
 // POST créer un nouvel article (admin seulement)
 router.post("/", authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const { nom, prix, quantiteStock, bottleType, aConsigner, fournisseurId } = req.body;
+    const { nom, prix, quantiteStock, bottleType, aConsigner, prixConsigne, fournisseurId } = req.body;
     const article = await prisma.article.create({
-      data: { nom, prix, ["quantitéStock"]: quantiteStock, bottleType, aConsigner, fournisseurId },
+      data: { nom, prix, ["quantitéStock"]: quantiteStock, bottleType, aConsigner, prixConsigne: prixConsigne ?? 0, fournisseurId },
     });
     res.status(201).json(article);
   } catch (error) {
@@ -57,11 +57,11 @@ router.post("/", authMiddleware, adminMiddleware, async (req, res) => {
 router.put("/:id", authMiddleware, adminMiddleware, async (req, res) => {
   const { id } = req.params;
   try {
-    const { nom, prix, quantiteStock, bottleType, aConsigner, fournisseurId } =
+    const { nom, prix, quantiteStock, bottleType, aConsigner, prixConsigne, fournisseurId } =
       req.body;
     const article = await prisma.article.update({
       where: { id: parseInt(id) },
-      data: { nom, prix, ["quantitéStock"]: quantiteStock, bottleType, aConsigner, fournisseurId },
+      data: { nom, prix, ["quantitéStock"]: quantiteStock, bottleType, aConsigner, prixConsigne: prixConsigne ?? 0, fournisseurId },
     });
     res.json(article);
   } catch (error) {
