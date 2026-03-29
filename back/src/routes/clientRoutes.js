@@ -17,8 +17,8 @@ router.get("/", authMiddleware, async (req, res) => {
 
 // GET un client par ID avec ses ventes (auth)
 router.get("/:id", authMiddleware, async (req, res) => {
-  const id = parseInt(req.params.id, 10); // Convertit l'ID du client depuis les paramètres de la requête en entier
-  if (!Number.isInteger(id) || id <= 0) {
+  const id = parsePositiveIntId(req.params.id); // Convertit l'ID du client depuis les paramètres de la requête en entier positif
+  if (id === null) {
     // Valide que l'ID est un entier positif
     return res.status(400).json({ error: "id invalide." }); // Retourne une erreur 400 Bad Request si l'ID est invalide
   }
@@ -65,8 +65,8 @@ router.post("/", authMiddleware, adminMiddleware, async (req, res) => {
 
 // PUT modifier un client (auth)
 router.put("/:id", authMiddleware, adminMiddleware, async (req, res) => {
-  const id = parseInt(req.params.id, 10); // Convertit l'ID du client depuis les paramètres de la requête en entier
-  if (!Number.isInteger(id) || id <= 0) {
+  const id = parsePositiveIntId(req.params.id); // Convertit l'ID du client depuis les paramètres de la requête en entier positif
+  if (id === null) {
     // Valide que l'ID est un entier positif
     return res.status(400).json({ error: "id invalide." }); // Retourne une erreur 400 Bad Request si l'ID est invalide
   }
@@ -100,9 +100,9 @@ router.put("/:id", authMiddleware, adminMiddleware, async (req, res) => {
 
 // DELETE supprimer un client (admin)
 router.delete("/:id", authMiddleware, adminMiddleware, async (req, res) => {
-  const id = parseInt(req.params.id, 10);
+  const id = parsePositiveIntId(req.params.id); // Convertit l'ID du client depuis les paramètres de la requête en entier positif
 
-  if (!Number.isInteger(id) || id <= 0) {
+  if (id === null) {
     return res.status(400).json({ error: "id invalide." });
   }
 
@@ -110,7 +110,15 @@ router.delete("/:id", authMiddleware, adminMiddleware, async (req, res) => {
     await prisma.client.delete({ where: { id } });
     res.json({ message: "Client supprimé." });
   } catch (error) {
+    if (error.code === "P2003") {
+      // Code d'erreur Prisma indiquant une violation de contrainte de clé étrangère, ce qui signifie que le client est lié à des ventes
+      return res.status(409).json({
+        error: "Impossible de supprimer le client car des ventes y sont liées.",
+      });
+    }
+
     if (error.code === "P2025")
+      // Code d'erreur Prisma indiquant que l'élément à supprimer n'existe pas, ce qui signifie que le client avec l'ID spécifié est introuvable
       return res.status(404).json({ error: "Client introuvable." });
     console.error("Erreur suppression client:", error);
     res.status(500).json({ error: "Erreur lors de la suppression du client." });

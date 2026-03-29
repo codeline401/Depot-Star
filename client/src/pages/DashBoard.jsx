@@ -181,7 +181,7 @@ function DashBoard() {
         />
         <KpiCard
           icon={AlertTriangle}
-          label="Stock faible (≤5)"
+          label="Stock faible (≤10)"
           value={kpis.stockFaibleCount}
           color="warning"
         />
@@ -346,7 +346,8 @@ function DashBoard() {
                 {vendeurs7j.map((vendeur, i) => (
                   <Bar
                     key={vendeur}
-                    dataKey={vendeur}
+                    dataKey={(row) => row[vendeur] ?? 0}
+                    name={vendeur}
                     stackId="a"
                     fill={VENDEUR_COLORS[i % VENDEUR_COLORS.length]}
                     radius={
