@@ -8,6 +8,7 @@ const ARTICLE_EMPTY = {
   quantiteStock: "",
   bottleType: "PLASTIQUE",
   aConsigner: false,
+  prixConsigne: "",
   fournisseurId: "",
 };
 
@@ -34,6 +35,7 @@ export default function ArticleModal({
               quantiteStock: article["quantitéStock"],
               bottleType: article.bottleType,
               aConsigner: article.aConsigner,
+              prixConsigne: article.prixConsigne ?? "",
               fournisseurId: article.fournisseurId,
             }
           : ARTICLE_EMPTY,
@@ -61,7 +63,14 @@ export default function ArticleModal({
       form.quantiteStock == null ||
       !form.fournisseurId
     ) {
-      setError("Tous les champs obligatoires doivent être remplis.");
+      setError("Tsy maintsy fenoina daholo ireo rehetra ireo.");
+      return;
+    }
+    if (
+      form.aConsigner &&
+      (form.prixConsigne === "" || form.prixConsigne == null)
+    ) {
+      setError("Tsy maintsy asiana vidin'ny consignation ity entana ity.");
       return;
     }
     setSaving(true);
@@ -72,10 +81,11 @@ export default function ArticleModal({
         quantiteStock: parseInt(form.quantiteStock),
         bottleType: form.bottleType,
         aConsigner: form.aConsigner,
+        prixConsigne: form.aConsigner ? parseFloat(form.prixConsigne) || 0 : 0,
         fournisseurId: parseInt(form.fournisseurId),
       });
     } catch (err) {
-      setError(err?.response?.data?.error || "Une erreur est survenue.");
+      setError(err?.response?.data?.error || "Nisy olana kely niseho.");
     } finally {
       setSaving(false);
     }
@@ -85,26 +95,26 @@ export default function ArticleModal({
     <Modal
       isOpen={open}
       onClose={onClose}
-      title={article ? "Modifier l'article" : "Nouvel article"}
+      title={article ? "Hanova ny entana" : "Entana vaovao"}
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="form-control">
           <label className="label">
-            <span className="label-text">Nom *</span>
+            <span className="label-text">Anarana *</span>
           </label>
           <input
             name="nom"
             value={form.nom}
             onChange={handleChange}
             className="input input-bordered w-full"
-            placeholder="Nom du produit"
+            placeholder="Anarana ny entana"
           />
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div className="form-control">
             <label className="label">
-              <span className="label-text">Prix (Ar) *</span>
+              <span className="label-text">Vidiny (Ar) *</span>
             </label>
             <input
               name="prix"
@@ -119,7 +129,7 @@ export default function ArticleModal({
           </div>
           <div className="form-control">
             <label className="label">
-              <span className="label-text">Quantité *</span>
+              <span className="label-text">Isany *</span>
             </label>
             <input
               name="quantiteStock"
@@ -179,6 +189,24 @@ export default function ArticleModal({
             <span className="label-text">Article à consigner</span>
           </label>
         </div>
+
+        {form.aConsigner && (
+          <div className="form-control">
+            <label className="label">
+              <span className="label-text">Prix de consigne (Ar) *</span>
+            </label>
+            <input
+              name="prixConsigne"
+              type="number"
+              step="0.01"
+              min="0"
+              value={form.prixConsigne}
+              onChange={handleChange}
+              className="input input-bordered w-full"
+              placeholder="0.00"
+            />
+          </div>
+        )}
 
         {error && (
           <div role="alert" className="alert alert-error py-2">

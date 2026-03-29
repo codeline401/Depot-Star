@@ -44,6 +44,37 @@ model Article{
     quantitéStock Int
     bottleType BottleType
     aConsigner Boolean @default(false)
+    prixConsigne Float @default(0) // Prix de consignation propre à chaque article
     fournisseurId Int
     fournisseur Fournisseur @relation(fields: [fournisseurId], references: [id]) // Relation avec le fournisseur
+}
+
+model Client {
+    id Int @id @default(autoincrement())
+    nom String
+    adresse String
+    telephone String
+    ventes Vente[]
+}
+
+model Vente {
+    id Int @id @default(autoincrement())
+    date DateTime @default(now())
+    total Float
+    vendeur String // alias du vendeur au moment de la vente
+    clientId Int
+    client Client @relation(fields: [clientId], references: [id])
+    lignes VenteLigne[]
+}
+
+model VenteLigne {
+    id Int @id @default(autoincrement())
+    venteId Int
+    vente Vente @relation(fields: [venteId], references: [id])
+    articleId Int // snapshot — référence non contrainte pour conserver l'historique
+    articleNom String
+    prixUnitaire Float
+    prixConsigne Float // 0 si non consigné
+    quantite Int
+    prixTotal Float
 }

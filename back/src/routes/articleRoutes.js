@@ -40,9 +40,40 @@ router.get("/:id", async (req, res) => {
 // POST créer un nouvel article (admin seulement)
 router.post("/", authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const { nom, prix, quantiteStock, bottleType, aConsigner, fournisseurId } = req.body;
+    const {
+      nom,
+      prix,
+      quantiteStock,
+      bottleType,
+      aConsigner,
+      prixConsigne,
+      fournisseurId,
+    } = req.body; // Récupère les données de l'article à créer depuis le corps de la requête
+
+    if (typeof aConsigner !== "boolean") {
+      return res
+        .status(400)
+        .json({ error: "aConsigner doit être un booléen." }); // Valide que aConsigner est un booléen
+    }
+
+    const normalizePriceConsigne = aConsigner ? Number(prixConsigne ?? 0) : 0; // Si l'article est à consigner, utilise le prix de consigne fourni ou 0 par défaut, sinon force à 0
+    if (
+      !Number.isFinite(normalizePriceConsigne) ||
+      normalizePriceConsigne < 0
+    ) {
+      return res.status(400).json({ error: "prixConsigne invalide." }); // Valide que le prix de consigne est un nombre positif ou nul
+    }
+
     const article = await prisma.article.create({
-      data: { nom, prix, ["quantitéStock"]: quantiteStock, bottleType, aConsigner, fournisseurId },
+      data: {
+        nom,
+        prix,
+        ["quantitéStock"]: quantiteStock,
+        bottleType,
+        aConsigner,
+        prixConsigne: normalizePriceConsigne,
+        fournisseurId,
+      },
     });
     res.status(201).json(article);
   } catch (error) {
@@ -57,11 +88,35 @@ router.post("/", authMiddleware, adminMiddleware, async (req, res) => {
 router.put("/:id", authMiddleware, adminMiddleware, async (req, res) => {
   const { id } = req.params;
   try {
-    const { nom, prix, quantiteStock, bottleType, aConsigner, fournisseurId } =
-      req.body;
+    const {
+      nom,
+      prix,
+      quantiteStock,
+      bottleType,
+      aConsigner,
+      prixConsigne,
+      fournisseurId,
+    } = req.body;
+
+    const normalizePriceConsigne = aConsigner ? Number(prixConsigne ?? 0) : 0; // Si l'article est à consigner, utilise le prix de consigne fourni ou 0 par défaut, sinon force à 0
+    if (
+      !Number.isFinite(normalizePriceConsigne) ||
+      normalizePriceConsigne < 0
+    ) {
+      return res.status(400).json({ error: "prixConsigne invalide." }); // Valide que le prix de consigne est un nombre positif ou nul
+    }
+
     const article = await prisma.article.update({
       where: { id: parseInt(id) },
-      data: { nom, prix, ["quantitéStock"]: quantiteStock, bottleType, aConsigner, fournisseurId },
+      data: {
+        nom,
+        prix,
+        ["quantitéStock"]: quantiteStock,
+        bottleType,
+        aConsigner,
+        prixConsigne: normalizePriceConsigne,
+        fournisseurId,
+      },
     });
     res.json(article);
   } catch (error) {

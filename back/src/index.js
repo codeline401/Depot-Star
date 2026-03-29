@@ -12,7 +12,9 @@ app.use(express.json()); // Middleware to parse JSON request bodies
 app.use("/api/articles", require("./routes/articleRoutes"));
 app.use("/api/fournisseurs", require("./routes/fournisseurRoutes"));
 app.use("/api/users", require("./routes/userRoutes"));
+app.use("/api/dashboard", require("./routes/dashboardRoutes"));
 app.use("/api/ventes", require("./routes/venteRoutes"));
+app.use("/api/clients", require("./routes/clientRoutes"));
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {

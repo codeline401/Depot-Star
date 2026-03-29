@@ -6,11 +6,14 @@ import {
   Printer,
   ShoppingCart,
   Trash2,
+  UserPlus,
+  Users,
 } from "lucide-react";
 import { getAllArticles } from "../api/articleService";
+import { getAllClients, createClient } from "../api/clientService";
 import { createVente } from "../api/venteService";
 
-const CONSIGNE = 700;
+const NEW_CLIENT_EMPTY = { nom: "", adresse: "", telephone: "" };
 
 function getCurrentUser() {
   try {
@@ -31,29 +34,30 @@ function escapeHtml(str) {
 
 function buildInvoiceHTML(invoice) {
   const lignesRows = invoice.lignes
-    .map(
-      (l) =>
-        `<tr>
+    .map((l) => {
+      const prixConsigneUnitaire =
+        l.article.aConsigner && l.quantite > 0 ? l.consigne / l.quantite : 0;
+      return `<tr>
           <td>${escapeHtml(l.article.nom)}</td>
           <td style="text-align:center">${escapeHtml(l.article.bottleType)}</td>
-          <td style="text-align:center">${l.article.aConsigner ? "Oui (+" + CONSIGNE + " Ar)" : "Non"}</td>
+          <td style="text-align:center">${l.article.aConsigner ? "Oui (+" + prixConsigneUnitaire.toLocaleString("fr-FR") + " Ar)" : "Non"}</td>
           <td style="text-align:right">${l.quantite}</td>
           <td style="text-align:right">${l.prixUnitaire.toLocaleString("fr-FR")} Ar</td>
           <td style="text-align:right">${l.consigne > 0 ? l.consigne.toLocaleString("fr-FR") + " Ar" : "—"}</td>
           <td style="text-align:right"><strong>${l.prixTotal.toLocaleString("fr-FR")} Ar</strong></td>
-        </tr>`,
-    )
+        </tr>`;
+    })
     .join("");
 
   return `<!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="UTF-8"/>
-  <title>Facture — ${escapeHtml(invoice.clientNom)}</title>
+  <title>Facture N° ${invoice.id} — ${escapeHtml(invoice.client.nom)}</title>
   <style>
     body { font-family: Arial, sans-serif; margin: 48px; color: #111; }
     h1 { font-size: 26px; margin: 0 0 4px; }
-    .subtitle { color: #666; margin-bottom: 28px; font-size: 13px; }
+    h2 { font-size: 16px; color: #555; font-weight: normal; margin: 0 0 28px; }
     .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 28px; }
     .meta-box { background: #f8f8f8; border: 1px solid #e0e0e0; padding: 14px 18px; border-radius: 6px; }
     .meta-box p { margin: 4px 0; font-size: 14px; }
@@ -68,11 +72,13 @@ function buildInvoiceHTML(invoice) {
 </head>
 <body>
   <h1>Depot-Star</h1>
-  <div class="subtitle">Facture de vente</div>
+  <h2>Facture N° ${invoice.id}</h2>
   <div class="meta-grid">
     <div class="meta-box">
       <div class="label">Client</div>
-      <p><strong>${escapeHtml(invoice.clientNom)}</strong></p>
+      <p><strong>${escapeHtml(invoice.client.nom)}</strong></p>
+      ${invoice.client.adresse ? `<p>${escapeHtml(invoice.client.adresse)}</p>` : ""}
+      ${invoice.client.telephone ? `<p>Tél. ${escapeHtml(invoice.client.telephone)}</p>` : ""}
     </div>
     <div class="meta-box">
       <div class="label">Vendeur · Date</div>
@@ -119,9 +125,14 @@ export default function VentePage() {
   const user = getCurrentUser();
 
   const [articles, setArticles] = useState([]);
+  const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const [clientNom, setClientNom] = useState("");
+  const [clientId, setClientId] = useState("");
+  const [showNewClient, setShowNewClient] = useState(false);
+  const [newClientForm, setNewClientForm] = useState(NEW_CLIENT_EMPTY);
+  const [newClientSaving, setNewClientSaving] = useState(false);
+  const [newClientError, setNewClientError] = useState("");
   const [selectedArticleId, setSelectedArticleId] = useState("");
   const [selectedQty, setSelectedQty] = useState(1);
   const [lignes, setLignes] = useState([]);
@@ -131,11 +142,42 @@ export default function VentePage() {
   const [invoice, setInvoice] = useState(null);
 
   useEffect(() => {
-    getAllArticles()
-      .then(setArticles)
-      .catch(() => setError("Erreur lors du chargement des articles."))
+    Promise.all([getAllArticles(), getAllClients()])
+      .then(([arts, cls]) => {
+        setArticles(arts);
+        setClients(cls);
+      })
+      .catch(() => setError("Erreur lors du chargement des données."))
       .finally(() => setLoading(false));
   }, []);
+
+  async function handleCreateClient(e) {
+    e.preventDefault();
+    const nom = newClientForm.nom.trim();
+    const adresse = newClientForm.adresse.trim();
+    const telephone = newClientForm.telephone.trim();
+    if (!nom || !adresse || !telephone) {
+      setNewClientError("Nom, adresse et téléphone sont requis.");
+      return;
+    }
+    setNewClientSaving(true);
+    setNewClientError("");
+    try {
+      const created = await createClient({ nom, adresse, telephone });
+      setClients((prev) =>
+        [...prev, created].sort((a, b) => a.nom.localeCompare(b.nom)),
+      );
+      setClientId(String(created.id));
+      setShowNewClient(false);
+      setNewClientForm(NEW_CLIENT_EMPTY);
+    } catch (err) {
+      setNewClientError(
+        err?.response?.data?.error || "Erreur lors de la création.",
+      );
+    } finally {
+      setNewClientSaving(false);
+    }
+  }
 
   function qtyInOrder(articleId) {
     return lignes
@@ -182,15 +224,18 @@ export default function VentePage() {
 
   function ligneTotal(l) {
     return (
-      (l.article.prix + (l.article.aConsigner ? CONSIGNE : 0)) * l.quantite
+      (l.article.prix + (l.article.aConsigner ? l.article.prixConsigne : 0)) *
+      l.quantite
     );
   }
+
+  const selectedClient = clients.find((c) => c.id === parseInt(clientId));
 
   const total = lignes.reduce((sum, l) => sum + ligneTotal(l), 0);
 
   async function handleValider() {
-    if (!clientNom.trim()) {
-      setError("Veuillez saisir le nom du client.");
+    if (!clientId) {
+      setError("Veuillez sélectionner un client.");
       return;
     }
     if (lignes.length === 0) {
@@ -203,7 +248,7 @@ export default function VentePage() {
 
     try {
       const result = await createVente({
-        clientNom: clientNom.trim(),
+        clientId: parseInt(clientId),
         lignes: lignes.map((l) => ({
           articleId: l.article.id,
           quantite: l.quantite,
@@ -214,7 +259,7 @@ export default function VentePage() {
 
       // Réinitialiser la commande immédiatement pour éviter les re-soumissions
       setLignes([]);
-      setClientNom("");
+      setClientId("");
       setSelectedArticleId("");
       setSelectedQty(1);
 
@@ -280,7 +325,7 @@ export default function VentePage() {
         <div className="alert alert-success shadow">
           <Printer className="size-5 shrink-0" />
           <span>
-            Vente validée pour <strong>{invoice.clientNom}</strong> — Total :{" "}
+            Facture <strong>N° {invoice.id}</strong> — {invoice.client.nom} —{" "}
             <strong>{invoice.total.toLocaleString("fr-FR")} Ar</strong>
           </span>
           <button
@@ -302,19 +347,112 @@ export default function VentePage() {
               <ShoppingCart className="size-5" /> Commande Client
             </h2>
 
-            {/* Nom client */}
-            <label className="form-control">
-              <div className="label">
-                <span className="label-text font-medium">Nom du client</span>
+            {/* Sélection client */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="label-text font-medium">Client *</span>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-xs gap-1"
+                  onClick={() => {
+                    setShowNewClient((v) => !v);
+                    setNewClientError("");
+                    setNewClientForm(NEW_CLIENT_EMPTY);
+                  }}
+                >
+                  {showNewClient ? (
+                    <Users className="size-3" />
+                  ) : (
+                    <UserPlus className="size-3" />
+                  )}
+                  {showNewClient ? "Choisir existant" : "Nouveau client"}
+                </button>
               </div>
-              <input
-                type="text"
-                className="input input-bordered w-full"
-                placeholder="Ex. Marie Dupont"
-                value={clientNom}
-                onChange={(e) => setClientNom(e.target.value)}
-              />
-            </label>
+
+              {showNewClient ? (
+                <form
+                  onSubmit={handleCreateClient}
+                  className="space-y-2 p-3 bg-base-200 rounded-box"
+                >
+                  <input
+                    type="text"
+                    className="input input-bordered input-sm w-full"
+                    placeholder="Nom *"
+                    value={newClientForm.nom}
+                    onChange={(e) =>
+                      setNewClientForm((p) => ({ ...p, nom: e.target.value }))
+                    }
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="text"
+                      className="input input-bordered input-sm w-full"
+                      placeholder="Adresse *"
+                      value={newClientForm.adresse}
+                      onChange={(e) =>
+                        setNewClientForm((p) => ({
+                          ...p,
+                          adresse: e.target.value,
+                        }))
+                      }
+                    />
+                    <input
+                      type="text"
+                      className="input input-bordered input-sm w-full"
+                      placeholder="Téléphone *"
+                      value={newClientForm.telephone}
+                      onChange={(e) =>
+                        setNewClientForm((p) => ({
+                          ...p,
+                          telephone: e.target.value,
+                        }))
+                      }
+                    />
+                  </div>
+                  {newClientError && (
+                    <p className="text-error text-xs">{newClientError}</p>
+                  )}
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-xs"
+                      onClick={() => setShowNewClient(false)}
+                    >
+                      Annuler
+                    </button>
+                    <button
+                      type="submit"
+                      className="btn btn-primary btn-xs"
+                      disabled={newClientSaving}
+                    >
+                      {newClientSaving && (
+                        <span className="loading loading-spinner loading-xs" />
+                      )}
+                      Créer &amp; sélectionner
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <select
+                  className="select select-bordered w-full"
+                  value={clientId}
+                  onChange={(e) => setClientId(e.target.value)}
+                >
+                  <option value="">— Sélectionner un client —</option>
+                  {clients.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.nom}
+                    </option>
+                  ))}
+                </select>
+              )}
+
+              {selectedClient && !showNewClient && (
+                <p className="text-xs text-base-content/60">
+                  {selectedClient.adresse} · {selectedClient.telephone}
+                </p>
+              )}
+            </div>
 
             {/* Ligne d'ajout */}
             <div className="flex gap-2 items-end">
@@ -415,7 +553,10 @@ export default function VentePage() {
                         <td className="text-right tabular-nums">
                           {l.article.aConsigner ? (
                             <span className="text-warning">
-                              +{(CONSIGNE * l.quantite).toLocaleString("fr-FR")}{" "}
+                              +
+                              {(
+                                l.article.prixConsigne * l.quantite
+                              ).toLocaleString("fr-FR")}{" "}
                               Ar
                             </span>
                           ) : (
@@ -457,8 +598,8 @@ export default function VentePage() {
             {/* Légende consigne */}
             {lignes.some((l) => l.article.aConsigner) && (
               <p className="text-xs text-warning">
-                ★ Articles consignés : +{CONSIGNE} Ar par unité inclus dans le
-                total.
+                ★ Consigne incluse au prix de vente selon le tarif de chaque
+                article.
               </p>
             )}
 
@@ -467,9 +608,7 @@ export default function VentePage() {
               <button
                 className="btn btn-success btn-wide"
                 onClick={handleValider}
-                disabled={
-                  processing || lignes.length === 0 || !clientNom.trim()
-                }
+                disabled={processing || lignes.length === 0 || !clientId}
               >
                 {processing && (
                   <span className="loading loading-spinner loading-sm" />
@@ -513,7 +652,8 @@ export default function VentePage() {
                           <div className="font-medium">{a.nom}</div>
                           {a.aConsigner && (
                             <div className="text-xs text-warning">
-                              ★ +{CONSIGNE} Ar consigne
+                              ★ +{a.prixConsigne.toLocaleString("fr-FR")} Ar
+                              consigne
                             </div>
                           )}
                         </td>
