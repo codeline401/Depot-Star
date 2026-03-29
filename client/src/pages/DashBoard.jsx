@@ -27,6 +27,16 @@ import {
 } from "lucide-react";
 import { getDashboardStats } from "../api/dashboardService";
 
+const COLOR_CLASSES = {
+  primary: { bg: "bg-primary/10", text: "text-primary" },
+  secondary: { bg: "bg-secondary/10", text: "text-secondary" },
+  accent: { bg: "bg-accent/10", text: "text-accent" },
+  info: { bg: "bg-info/10", text: "text-info" },
+  success: { bg: "bg-success/10", text: "text-success" },
+  warning: { bg: "bg-warning/10", text: "text-warning" },
+  error: { bg: "bg-error/10", text: "text-error" },
+};
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function fmt(n) {
@@ -45,10 +55,12 @@ function shortDate(dateStr) {
 // ── KPI Card ─────────────────────────────────────────────────────────────────
 
 function KpiCard({ icon: Icon, label, value, sub, color = "primary" }) {
+  const classes = COLOR_CLASSES[color] || COLOR_CLASSES.primary;
+
   return (
     <div className="card bg-base-100 shadow-md">
       <div className="card-body p-4 flex-row items-center gap-4">
-        <div className={`p-3 rounded-xl bg-${color}/10 text-${color}`}>
+        <div className={`p-3 rounded-xl ${classes.bg} ${classes.text}`}>
           <Icon size={24} />
         </div>
         <div>

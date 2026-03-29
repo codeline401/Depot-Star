@@ -9,36 +9,48 @@ router.get("/", authMiddleware, async (req, res) => {
     res.json(clients);
   } catch (error) {
     console.error("Erreur chargement clients:", error);
-    res.status(500).json({ error: "Erreur lors de la récupération des clients." });
+    res
+      .status(500)
+      .json({ error: "Erreur lors de la récupération des clients." });
   }
 });
 
 // GET un client par ID avec ses ventes (auth)
 router.get("/:id", authMiddleware, async (req, res) => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(req.params.id, 10); // Convertit l'ID du client depuis les paramètres de la requête en entier
   if (!Number.isInteger(id) || id <= 0) {
-    return res.status(400).json({ error: "id invalide." });
+    // Valide que l'ID est un entier positif
+    return res.status(400).json({ error: "id invalide." }); // Retourne une erreur 400 Bad Request si l'ID est invalide
   }
   try {
     const client = await prisma.client.findUnique({
+      // Recherche du client dans la base de données par son ID
       where: { id },
-      include: { ventes: { orderBy: { date: "desc" }, include: { lignes: true } } },
+      include: {
+        ventes: { orderBy: { date: "desc" }, include: { lignes: true } },
+      },
     });
     if (!client) return res.status(404).json({ error: "Client introuvable." });
     res.json(client);
   } catch (error) {
     console.error("Erreur chargement client:", error);
-    res.status(500).json({ error: "Erreur lors de la récupération du client." });
+    res
+      .status(500)
+      .json({ error: "Erreur lors de la récupération du client." });
   }
 });
 
 // POST créer un client (auth)
 router.post("/", authMiddleware, async (req, res) => {
   const nomT = typeof req.body.nom === "string" ? req.body.nom.trim() : "";
-  const adresseT = typeof req.body.adresse === "string" ? req.body.adresse.trim() : "";
-  const telephoneT = typeof req.body.telephone === "string" ? req.body.telephone.trim() : "";
+  const adresseT =
+    typeof req.body.adresse === "string" ? req.body.adresse.trim() : "";
+  const telephoneT =
+    typeof req.body.telephone === "string" ? req.body.telephone.trim() : "";
   if (!nomT || !adresseT || !telephoneT) {
-    return res.status(400).json({ error: "Nom, adresse et téléphone sont requis." });
+    return res
+      .status(400)
+      .json({ error: "Nom, adresse et téléphone sont requis." });
   }
   try {
     const client = await prisma.client.create({
@@ -53,21 +65,34 @@ router.post("/", authMiddleware, async (req, res) => {
 
 // PUT modifier un client (auth)
 router.put("/:id", authMiddleware, async (req, res) => {
-  const id = parseInt(req.params.id, 10);
-  const nomT = typeof req.body.nom === "string" ? req.body.nom.trim() : "";
-  const adresseT = typeof req.body.adresse === "string" ? req.body.adresse.trim() : "";
-  const telephoneT = typeof req.body.telephone === "string" ? req.body.telephone.trim() : "";
+  const id = parseInt(req.params.id, 10); // Convertit l'ID du client depuis les paramètres de la requête en entier
+  if (!Number.isInteger(id) || id <= 0) {
+    // Valide que l'ID est un entier positif
+    return res.status(400).json({ error: "id invalide." }); // Retourne une erreur 400 Bad Request si l'ID est invalide
+  }
+
+  const nomT = typeof req.body.nom === "string" ? req.body.nom.trim() : ""; // Valide et nettoie le nom du client depuis le corps de la requête
+  const adresseT =
+    typeof req.body.adresse === "string" ? req.body.adresse.trim() : ""; // Valide et nettoie l'adresse du client depuis le corps de la requête
+  const telephoneT =
+    typeof req.body.telephone === "string" ? req.body.telephone.trim() : ""; // Valide et nettoie le téléphone du client depuis le corps de la requête
+
   if (!nomT || !adresseT || !telephoneT) {
-    return res.status(400).json({ error: "Nom, adresse et téléphone sont requis." });
+    // Vérifie que le nom, l'adresse et le téléphone sont tous présents et valides
+    return res
+      .status(400)
+      .json({ error: "Nom, adresse et téléphone sont requis." });
   }
   try {
     const client = await prisma.client.update({
-      where: { id },
-      data: { nom: nomT, adresse: adresseT, telephone: telephoneT },
+      // Met à jour le client dans la base de données avec les nouvelles données
+      where: { id }, // Spécifie le client à mettre à jour par son ID
+      data: { nom: nomT, adresse: adresseT, telephone: telephoneT }, // Les nouvelles données du client à mettre à jour
     });
     res.json(client);
   } catch (error) {
-    if (error.code === "P2025") return res.status(404).json({ error: "Client introuvable." });
+    if (error.code === "P2025")
+      return res.status(404).json({ error: "Client introuvable." });
     console.error("Erreur mise à jour client:", error);
     res.status(500).json({ error: "Erreur lors de la mise à jour du client." });
   }
@@ -76,11 +101,17 @@ router.put("/:id", authMiddleware, async (req, res) => {
 // DELETE supprimer un client (admin)
 router.delete("/:id", authMiddleware, adminMiddleware, async (req, res) => {
   const id = parseInt(req.params.id, 10);
+
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ error: "id invalide." });
+  }
+
   try {
     await prisma.client.delete({ where: { id } });
     res.json({ message: "Client supprimé." });
   } catch (error) {
-    if (error.code === "P2025") return res.status(404).json({ error: "Client introuvable." });
+    if (error.code === "P2025")
+      return res.status(404).json({ error: "Client introuvable." });
     console.error("Erreur suppression client:", error);
     res.status(500).json({ error: "Erreur lors de la suppression du client." });
   }
