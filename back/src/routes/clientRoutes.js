@@ -2,6 +2,11 @@ const router = require("express").Router();
 const prisma = require("../prisma");
 const { authMiddleware, adminMiddleware } = require("../middleware/auth");
 
+function parsePositiveIntId(raw) {
+  const id = parseInt(raw, 10);
+  return Number.isInteger(id) && id > 0 ? id : null;
+}
+
 // GET tous les clients (auth)
 router.get("/", authMiddleware, async (req, res) => {
   try {
