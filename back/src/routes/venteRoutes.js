@@ -37,7 +37,12 @@ router.get("/:id", authMiddleware, async (req, res) => {
   try {
     const vente = await prisma.vente.findUnique({
       where: { id }, // Recherche de la vente par son ID
-      include: { client: true, lignes: true, cageotsRetour: true },
+      include: {
+        client: true,
+        lignes: true,
+        cageotsRetour: true,
+        consignesRetour: true,
+      },
     });
     if (!vente) return res.status(404).json({ error: "Vente introuvable." });
     res.json(vente);

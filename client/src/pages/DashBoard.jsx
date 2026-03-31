@@ -195,6 +195,13 @@ function DashBoard() {
           color="accent"
         />
         <KpiCard
+          icon={Wallet}
+          label="CA net (total)"
+          value={fmt(kpis.caNetTotal)}
+          sub="ventes − appros"
+          color={kpis.caNetTotal >= 0 ? "success" : "error"}
+        />
+        <KpiCard
           icon={Users}
           label="Clients"
           value={kpis.nbClients}
@@ -255,13 +262,7 @@ function DashBoard() {
           sub="ventes − appros"
           color={kpis.caNetMois >= 0 ? "success" : "error"}
         />
-        <KpiCard
-          icon={Wallet}
-          label="CA net (total)"
-          value={fmt(kpis.caNetTotal)}
-          sub="ventes − appros"
-          color={kpis.caNetTotal >= 0 ? "success" : "error"}
-        />
+
         <div className="card bg-base-100 shadow-md">
           <div className="card-body p-4 flex-row items-center gap-4">
             <div
@@ -347,14 +348,16 @@ function DashBoard() {
                       kpis.caNetMois >= 0 ? "text-success" : "text-error"
                     }`}
                   >
-                    {kpis.caNetMois >= 0 ? "+" : ""}{fmt(kpis.caNetMois)}
+                    {kpis.caNetMois >= 0 ? "+" : ""}
+                    {fmt(kpis.caNetMois)}
                   </td>
                   <td
                     className={`text-right tabular-nums ${
                       kpis.caNetTotal >= 0 ? "text-success" : "text-error"
                     }`}
                   >
-                    {kpis.caNetTotal >= 0 ? "+" : ""}{fmt(kpis.caNetTotal)}
+                    {kpis.caNetTotal >= 0 ? "+" : ""}
+                    {fmt(kpis.caNetTotal)}
                   </td>
                 </tr>
               </tfoot>

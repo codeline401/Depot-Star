@@ -83,7 +83,41 @@ function buildInvoiceHTML(v) {
   </table>`
     : "";
 
-  const sousTotalHT = (v.total ?? 0) + (v.consigneRendue ?? 0);
+  const hasCageotRetour =
+    Array.isArray(v.cageotsRetour) && v.cageotsRetour.length > 0;
+
+  const cageotRetourRows = hasCageotRetour
+    ? v.cageotsRetour
+        .map(
+          (r) => `<tr>
+        <td>Cageot ${r.capacite} bouteilles</td>
+        <td style="text-align:right">${r.quantite}</td>
+        <td style="text-align:right">8 000 Ar</td>
+        <td style="text-align:right; color:#d97706; font-weight:600">−${r.montant.toLocaleString("fr-FR")} Ar</td>
+      </tr>`,
+        )
+        .join("")
+    : "";
+
+  const cageotRetourSection = hasCageotRetour
+    ? `<h3 style="font-size:15px;margin:28px 0 10px;color:#d97706">&#x21A9; Cageots rendus par le client</h3>
+  <table>
+    <thead><tr style="background:#fffbeb">
+      <th style="color:#d97706">Cageot</th>
+      <th style="text-align:right;color:#d97706">Qté rendue</th>
+      <th style="text-align:right;color:#d97706">Consigne/u</th>
+      <th style="text-align:right;color:#d97706">Déduction</th>
+    </tr></thead>
+    <tbody>${cageotRetourRows}</tbody>
+    <tfoot><tr style="background:#fffbeb">
+      <td colspan="3" style="text-align:right;font-weight:600;color:#d97706">Total déduction</td>
+      <td style="text-align:right;font-weight:700;font-size:15px;color:#d97706">−${(v.consigneCageotRendue ?? 0).toLocaleString("fr-FR")} Ar</td>
+    </tr></tfoot>
+  </table>`
+    : "";
+
+  const sousTotalHT =
+    (v.total ?? 0) + (v.consigneRendue ?? 0) + (v.consigneCageotRendue ?? 0);
 
   return `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"/>
 <title>Facture N° ${v.id} — ${escapeHtml(v.client?.nom)}</title>
@@ -128,13 +162,22 @@ function buildInvoiceHTML(v) {
   </tfoot>
 </table>
 ${retourSection}
-<table style="margin-top:${hasRetour ? "8px" : "0"}">
+${cageotRetourSection}
+<table style="margin-top:${hasRetour || hasCageotRetour ? "8px" : "0"}">
   <tfoot>
     ${
       hasRetour
         ? `<tr class="total-row">
       <td colspan="4" style="text-align:right;color:#16a34a">↩ Déduction consignes rendues</td>
       <td style="text-align:right;color:#16a34a">−${(v.consigneRendue ?? 0).toLocaleString("fr-FR")} Ar</td>
+    </tr>`
+        : ""
+    }
+    ${
+      hasCageotRetour
+        ? `<tr class="total-row">
+      <td colspan="4" style="text-align:right;color:#d97706">↩ Déduction cageots rendus</td>
+      <td style="text-align:right;color:#d97706">−${(v.consigneCageotRendue ?? 0).toLocaleString("fr-FR")} Ar</td>
     </tr>`
         : ""
     }

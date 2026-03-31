@@ -21,8 +21,6 @@ router.post("/", authMiddleware, adminMiddleware, async (req, res) => {
     for (const l of lignes) {
       if (
         !Number.isInteger(l.articleId) ||
-        typeof l.articleNom !== "string" ||
-        !l.articleNom.trim() ||
         !Number.isFinite(l.prixUnitaire) ||
         l.prixUnitaire < 0 ||
         !Number.isInteger(l.qteCommandee) ||
@@ -34,13 +32,26 @@ router.post("/", authMiddleware, adminMiddleware, async (req, res) => {
       }
     }
 
-    // ── 2. Calcul du coût total ──────────────────────────────────────────────
+    // ── 2. Récupérer les articles depuis la base ──────────────────────────────
+    // On récupère les noms depuis la DB pour garantir l'intégrité des enregistrements.
+    const articleIds = [...new Set(lignes.map((l) => l.articleId))];
+    const dbArticles = await prisma.article.findMany({
+      where: { id: { in: articleIds } },
+    });
+    if (dbArticles.length !== articleIds.length) {
+      return res
+        .status(404)
+        .json({ error: "Un ou plusieurs articles introuvables." });
+    }
+    const articleMap = Object.fromEntries(dbArticles.map((a) => [a.id, a]));
+
+    // ── 3. Calcul du coût total ──────────────────────────────────────────────
     const coutTotal = lignes.reduce(
       (sum, l) => sum + l.prixUnitaire * l.qteCommandee,
       0,
     );
 
-    // ── 3. Création en base (transaction) ────────────────────────────────────
+    // ── 4. Création en base (transaction) ────────────────────────────────────
     const appro = await prisma.appro.create({
       data: {
         coutTotal,
@@ -48,7 +59,7 @@ router.post("/", authMiddleware, adminMiddleware, async (req, res) => {
         lignes: {
           create: lignes.map((l) => ({
             articleId: l.articleId,
-            articleNom: l.articleNom.trim(),
+            articleNom: articleMap[l.articleId].nom,
             prixUnitaire: l.prixUnitaire,
             qteCommandee: l.qteCommandee,
             coutLigne: l.prixUnitaire * l.qteCommandee,
@@ -83,24 +94,34 @@ router.put(
     }
 
     try {
-      // ── 1. Charger l'appro ───────────────────────────────────────────────────
-      const appro = await prisma.appro.findUnique({
-        where: { id },
-        include: { lignes: true },
-      });
-
-      if (!appro) {
-        return res.status(404).json({ error: "Appro introuvable." });
-      }
-      if (appro.status === "VALIDE") {
-        return res
-          .status(409)
-          .json({ error: "Cette appro a déjà été validée." });
-      }
-
-      // ── 2. Transaction : stock + status ─────────────────────────────────────
+      // ── Transaction atomique : status + stock ────────────────────────────────
+      // updateMany avec WHERE status=VERIFIE garantit qu'une seule requête
+      // concurrente peut passer, éliminant la race condition.
       const updated = await prisma.$transaction(async (tx) => {
+        const result = await tx.appro.updateMany({
+          where: { id, status: "VERIFIE" },
+          data: { status: "VALIDE", dateValidation: new Date() },
+        });
+
+        if (result.count === 0) {
+          const existing = await tx.appro.findUnique({ where: { id } });
+          if (!existing) {
+            const err = new Error("not_found");
+            err.httpStatus = 404;
+            err.clientError = "Appro introuvable.";
+            throw err;
+          }
+          const err = new Error("already_valide");
+          err.httpStatus = 409;
+          err.clientError = "Cette appro a déjà été validée.";
+          throw err;
+        }
+
         // Incrémenter le stock de chaque article
+        const appro = await tx.appro.findUnique({
+          where: { id },
+          include: { lignes: true },
+        });
         for (const ligne of appro.lignes) {
           await tx.article.update({
             where: { id: ligne.articleId },
@@ -109,20 +130,14 @@ router.put(
             },
           });
         }
-
-        // Passer l'appro en VALIDE
-        return tx.appro.update({
-          where: { id },
-          data: {
-            status: "VALIDE",
-            dateValidation: new Date(),
-          },
-          include: { lignes: true },
-        });
+        return appro;
       });
 
       res.json(updated);
     } catch (err) {
+      if (err.httpStatus) {
+        return res.status(err.httpStatus).json({ error: err.clientError });
+      }
       console.error("Erreur validation appro:", err);
       res
         .status(500)

@@ -243,7 +243,7 @@ export default function ApproPage() {
         <div className="alert alert-error">
           <AlertCircle className="size-5" />
           <span>{loadError}</span>
-          <button className="btn btn-ghost btn-xs ml-auto" onClick={loadData}>
+          <button className="btn btn-ghost btn-xs ml-auto" onClick={() => loadData()}>
             Réessayer
           </button>
         </div>

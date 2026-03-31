@@ -10,7 +10,7 @@ import ChangePasswordPage from "./pages/ChangePasswordPage";
 import RegisterPage from "./pages/RegisterPage";
 
 import "./App.css";
-import Header from "./components/header";
+import Header from "./components/Header";
 import ApproPage from "./pages/ApproPage";
 import ApprosListPage from "./pages/ApprosListPage";
 

@@ -19,7 +19,9 @@ router.get("/", async (req, res) => {
     res.json(emballages);
   } catch (error) {
     console.error("Error fetching emballages:", error);
-    res.status(500).json({ error: "An error occurred while fetching emballages." });
+    res
+      .status(500)
+      .json({ error: "An error occurred while fetching emballages." });
   }
 });
 
@@ -29,7 +31,9 @@ router.post("/", authMiddleware, adminMiddleware, async (req, res) => {
     const { type, prixConsigne, capacite, quantiteStock } = req.body;
 
     if (!["BOUTEILLE", "CAGEOT"].includes(type)) {
-      return res.status(400).json({ error: "Type invalide (BOUTEILLE ou CAGEOT)." });
+      return res
+        .status(400)
+        .json({ error: "Type invalide (BOUTEILLE ou CAGEOT)." });
     }
 
     let finalPrixConsigne = Number(prixConsigne);
@@ -37,7 +41,12 @@ router.post("/", authMiddleware, adminMiddleware, async (req, res) => {
 
     if (type === "BOUTEILLE") {
       if (![300, 500, 700].includes(finalPrixConsigne)) {
-        return res.status(400).json({ error: "Prix de consigne invalide pour une bouteille (300, 500 ou 700 Ar)." });
+        return res
+          .status(400)
+          .json({
+            error:
+              "Prix de consigne invalide pour une bouteille (300, 500 ou 700 Ar).",
+          });
       }
       finalCapacite = 0;
     } else {
@@ -45,8 +54,20 @@ router.post("/", authMiddleware, adminMiddleware, async (req, res) => {
       finalPrixConsigne = 8000;
       finalCapacite = Number(capacite);
       if (![12, 20, 24].includes(finalCapacite)) {
-        return res.status(400).json({ error: "Capacité invalide pour un cageot (12, 20 ou 24 bouteilles)." });
+        return res
+          .status(400)
+          .json({
+            error:
+              "Capacité invalide pour un cageot (12, 20 ou 24 bouteilles).",
+          });
       }
+    }
+
+    const parsedQty = parseInt(quantiteStock, 10);
+    if (!Number.isInteger(parsedQty) || isNaN(parsedQty) || parsedQty < 0) {
+      return res
+        .status(400)
+        .json({ error: "quantiteStock doit être un entier positif ou nul." });
     }
 
     const emballage = await prisma.emballage.create({
@@ -54,7 +75,7 @@ router.post("/", authMiddleware, adminMiddleware, async (req, res) => {
         type,
         prixConsigne: finalPrixConsigne,
         capacite: finalCapacite,
-        quantiteStock: Math.max(0, parseInt(quantiteStock) || 0),
+        quantiteStock: parsedQty,
       },
     });
     res.status(201).json(emballage);
@@ -63,13 +84,18 @@ router.post("/", authMiddleware, adminMiddleware, async (req, res) => {
       return res.status(400).json({ error: "Cet emballage existe déjà." });
     }
     console.error("Error creating emballage:", error);
-    res.status(500).json({ error: "An error occurred while creating the emballage." });
+    res
+      .status(500)
+      .json({ error: "An error occurred while creating the emballage." });
   }
 });
 
 // PUT mettre à jour le stock d'un emballage (admin)
 router.put("/:id", authMiddleware, adminMiddleware, async (req, res) => {
-  const { id } = req.params;
+  const parsedId = parseInt(req.params.id, 10);
+  if (isNaN(parsedId) || parsedId <= 0) {
+    return res.status(400).json({ error: "ID invalide." });
+  }
   try {
     const { quantiteStock } = req.body;
 
@@ -77,14 +103,26 @@ router.put("/:id", authMiddleware, adminMiddleware, async (req, res) => {
       return res.status(400).json({ error: "quantiteStock est requis." });
     }
 
+    const parsedQty = parseInt(quantiteStock, 10);
+    if (!Number.isInteger(parsedQty) || isNaN(parsedQty) || parsedQty < 0) {
+      return res
+        .status(400)
+        .json({ error: "quantiteStock doit être un entier positif ou nul." });
+    }
+
     const emballage = await prisma.emballage.update({
-      where: { id: parseInt(id) },
-      data: { quantiteStock: Math.max(0, parseInt(quantiteStock) || 0) },
+      where: { id: parsedId },
+      data: { quantiteStock: parsedQty },
     });
     res.json(emballage);
   } catch (error) {
+    if (error.code === "P2025") {
+      return res.status(404).json({ error: "Emballage introuvable." });
+    }
     console.error("Error updating emballage:", error);
-    res.status(500).json({ error: "An error occurred while updating the emballage." });
+    res
+      .status(500)
+      .json({ error: "An error occurred while updating the emballage." });
   }
 });
 
@@ -96,7 +134,9 @@ router.delete("/:id", authMiddleware, adminMiddleware, async (req, res) => {
     res.json({ message: "Emballage deleted successfully." });
   } catch (error) {
     console.error("Error deleting emballage:", error);
-    res.status(500).json({ error: "An error occurred while deleting the emballage." });
+    res
+      .status(500)
+      .json({ error: "An error occurred while deleting the emballage." });
   }
 });
 
