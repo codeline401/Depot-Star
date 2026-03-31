@@ -19,6 +19,11 @@ enum BottleType {
     VERRE
 }
 
+enum EmballageType {
+    BOUTEILLE
+    CAGEOT
+}
+
 model User {
     id Int @id @default(autoincrement())
     nom String
@@ -61,20 +66,83 @@ model Vente {
     id Int @id @default(autoincrement())
     date DateTime @default(now())
     total Float
-    vendeur String // alias du vendeur au moment de la vente
+    consigneRendue Float @default(0)
+    consigneCageotRendue Float @default(0) // Montant total des consignes cageot rendues
+    vendeur String
     clientId Int
     client Client @relation(fields: [clientId], references: [id])
     lignes VenteLigne[]
+    consignesRetour ConsigneRetour[]
+    cageotsRetour CageotRetour[]
+}
+
+model ConsigneRetour {
+    id Int @id @default(autoincrement())
+    venteId Int
+    vente Vente @relation(fields: [venteId], references: [id])
+    articleId Int // snapshot
+    articleNom String
+    prixConsigne Float
+    quantite Int
+    montant Float
 }
 
 model VenteLigne {
     id Int @id @default(autoincrement())
     venteId Int
     vente Vente @relation(fields: [venteId], references: [id])
-    articleId Int // snapshot — référence non contrainte pour conserver l'historique
+    articleId Int
     articleNom String
     prixUnitaire Float
-    prixConsigne Float // 0 si non consigné
+    prixConsigne Float // 0 si non consigné (consigne bouteille)
+    consigneCageot Float @default(0) // consigne cageot totale pour cette ligne
+    qteCageots Int @default(0) // nombre de cageots utilisés
     quantite Int
     prixTotal Float
+}
+
+model CageotRetour {
+    id Int @id @default(autoincrement())
+    venteId Int
+    vente Vente @relation(fields: [venteId], references: [id])
+    capacite Int // capacite du cageot (12, 20 ou 24)
+    quantite Int
+    montant Float // quantite * 8000
+}
+
+model Emballage {
+    id            Int           @id @default(autoincrement())
+    type          EmballageType
+    prixConsigne  Float         // 300/500/700 pour bouteilles, 8000 pour cageots
+    capacite      Int           @default(0) // Nb de bouteilles par cageot (0 pour les bouteilles)
+    quantiteStock Int           @default(0)
+
+    @@unique([type, prixConsigne, capacite])
+}
+
+enum ApproStatus {
+    VERIFIE // Liste vérifiée, en attente de validation
+    VALIDE  // Marchandises entrées en stock
+}
+
+// Ordre d'approvisionnement : créé au "checker", validé à l'entrée en stock
+model Appro {
+    id             Int          @id @default(autoincrement())
+    date           DateTime     @default(now())
+    dateValidation DateTime?    // renseignée quand status passe à VALIDE
+    status         ApproStatus  @default(VERIFIE)
+    coutTotal      Float        // Coût total = Σ (qteCommandee × prixUnitaire)
+    lignes         ApproLigne[]
+}
+
+// Détail ligne par ligne d'un ordre d'appro
+model ApproLigne {
+    id           Int    @id @default(autoincrement())
+    approId      Int
+    appro        Appro  @relation(fields: [approId], references: [id])
+    articleId    Int    // référence article (non contrainte pour garder la trace si article supprimé)
+    articleNom   String // snapshot du nom au moment de l'appro
+    prixUnitaire Float  // snapshot du prix d'achat
+    qteCommandee Int    // quantité réceptionnée
+    coutLigne    Float  // qteCommandee × prixUnitaire
 }

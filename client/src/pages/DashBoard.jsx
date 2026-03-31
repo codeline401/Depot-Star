@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   LineChart,
   Line,
@@ -24,6 +25,10 @@ import {
   CreditCard,
   ArrowUpRight,
   ArrowDownRight,
+  FileText,
+  ClipboardList,
+  Wallet,
+  TrendingDown,
 } from "lucide-react";
 import { getDashboardStats } from "../api/dashboardService";
 
@@ -73,9 +78,12 @@ function KpiCard({ icon: Icon, label, value, sub, color = "primary" }) {
   );
 }
 
+// ── ApproRow ──────────────────────────────────────────────────────────────────
+
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 
 function DashBoard() {
+  const navigate = useNavigate();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -115,6 +123,7 @@ function DashBoard() {
   const {
     kpis,
     ventesParJour,
+    approsParJour,
     topVendeurs,
     topArticles,
     stockFaible,
@@ -143,7 +152,25 @@ function DashBoard() {
 
   return (
     <div className="p-6 space-y-8 max-w-7xl mx-auto">
-      <h1 className="text-2xl font-bold">Tableau de bord</h1>
+      <div className="flex items-center gap-3 flex-wrap">
+        <h1 className="text-2xl font-bold">Tableau de bord</h1>
+        <div className="ml-auto flex gap-2">
+          <button
+            className="btn btn-outline btn-sm gap-2"
+            onClick={() => navigate("/appros")}
+          >
+            <ClipboardList className="size-4" />
+            Historique des appros
+          </button>
+          <button
+            className="btn btn-outline btn-sm gap-2"
+            onClick={() => navigate("/ventes")}
+          >
+            <FileText className="size-4" />
+            Historique des ventes
+          </button>
+        </div>
+      </div>
 
       {/* ── KPIs ─────────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -166,6 +193,13 @@ function DashBoard() {
           value={fmt(kpis.caTotal)}
           sub={`${kpis.nbVentes} ventes`}
           color="accent"
+        />
+        <KpiCard
+          icon={Wallet}
+          label="CA net (total)"
+          value={fmt(kpis.caNetTotal)}
+          sub="ventes − appros"
+          color={kpis.caNetTotal >= 0 ? "success" : "error"}
         />
         <KpiCard
           icon={Users}
@@ -206,6 +240,29 @@ function DashBoard() {
           sub="consigne × quantité"
           color="info"
         />
+        {/* ── KPIs Appros & CA net ── */}
+        <KpiCard
+          icon={TrendingDown}
+          label="Coût appros (mois)"
+          value={fmt(kpis.coutApproMois)}
+          sub="achats validés ce mois"
+          color="error"
+        />
+        <KpiCard
+          icon={TrendingDown}
+          label="Coût appros (total)"
+          value={fmt(kpis.coutApproTotal)}
+          sub="depuis le début"
+          color="error"
+        />
+        <KpiCard
+          icon={Wallet}
+          label="CA net (mois)"
+          value={fmt(kpis.caNetMois)}
+          sub="ventes − appros"
+          color={kpis.caNetMois >= 0 ? "success" : "error"}
+        />
+
         <div className="card bg-base-100 shadow-md">
           <div className="card-body p-4 flex-row items-center gap-4">
             <div
@@ -242,13 +299,89 @@ function DashBoard() {
         </div>
       </div>
 
-      {/* ── Courbe CA 30 jours ───────────────────────────────────────────── */}
+      {/* ── Bilan financier ──────────────────────────────────────────────── */}
+      <div className="card bg-base-100 shadow-md border border-base-200">
+        <div className="card-body">
+          <h2 className="card-title text-base mb-3">
+            <Wallet size={18} className="text-success" /> Bilan financier
+          </h2>
+          <div className="overflow-x-auto">
+            <table className="table table-sm">
+              <thead>
+                <tr>
+                  <th>Poste</th>
+                  <th className="text-right">Ce mois</th>
+                  <th className="text-right">Depuis le début</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-primary inline-block" />
+                    Recettes brutes (ventes)
+                  </td>
+                  <td className="text-right tabular-nums font-medium text-primary">
+                    {fmt(kpis.caMois)}
+                  </td>
+                  <td className="text-right tabular-nums font-medium text-primary">
+                    {fmt(kpis.caTotal)}
+                  </td>
+                </tr>
+                <tr>
+                  <td className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-error inline-block" />
+                    Coûts approvisionnement
+                  </td>
+                  <td className="text-right tabular-nums font-medium text-error">
+                    −{fmt(kpis.coutApproMois)}
+                  </td>
+                  <td className="text-right tabular-nums font-medium text-error">
+                    −{fmt(kpis.coutApproTotal)}
+                  </td>
+                </tr>
+              </tbody>
+              <tfoot>
+                <tr className="font-bold text-base">
+                  <td>Bénéfice net</td>
+                  <td
+                    className={`text-right tabular-nums ${
+                      kpis.caNetMois >= 0 ? "text-success" : "text-error"
+                    }`}
+                  >
+                    {kpis.caNetMois >= 0 ? "+" : ""}
+                    {fmt(kpis.caNetMois)}
+                  </td>
+                  <td
+                    className={`text-right tabular-nums ${
+                      kpis.caNetTotal >= 0 ? "text-success" : "text-error"
+                    }`}
+                  >
+                    {kpis.caNetTotal >= 0 ? "+" : ""}
+                    {fmt(kpis.caNetTotal)}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Courbe CA + Coûts appros 30 jours ───────────────────────────── */}
       <div className="card bg-base-100 shadow-md">
         <div className="card-body">
-          <h2 className="card-title text-base mb-2">CA sur 30 jours</h2>
+          <h2 className="card-title text-base mb-2">
+            CA &amp; Coûts approvisionnement (30 jours)
+          </h2>
           <ResponsiveContainer width="100%" height={260}>
             <LineChart
-              data={ventesParJour}
+              data={ventesParJour.map((v, i) => ({
+                ...v,
+                coutAppro: approsParJour[i]?.coutAppro ?? 0,
+                caNet:
+                  Math.round(
+                    (v.ca - (approsParJour[i]?.coutAppro ?? 0)) * 100,
+                  ) / 100,
+              }))}
               margin={{ top: 5, right: 20, left: 10, bottom: 5 }}
             >
               <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.3} />
@@ -259,21 +392,42 @@ function DashBoard() {
                 interval={4}
               />
               <YAxis
-                tick={{ fontSize: 11 }} // Réduit la taille des ticks de l'axe Y pour une meilleure lisibilité
+                tick={{ fontSize: 11 }}
                 tickFormatter={(v) =>
-                  v < 1000 // Affiche les valeurs inférieures à 1000 normalement, sinon en format "k" avec une décimale
+                  Math.abs(v) < 1000
                     ? `${v}`
                     : `${(v / 1000).toLocaleString("fr-FR", { maximumFractionDigits: 1 })}k`
                 }
               />
               <Tooltip
-                formatter={(v) => [fmt(v), "CA"]}
+                formatter={(v, name) => [fmt(v), name]}
                 labelFormatter={(l) => `Date : ${l}`}
               />
+              <Legend />
               <Line
                 type="monotone"
                 dataKey="ca"
+                name="CA brut"
                 stroke="#570df8"
+                strokeWidth={2}
+                dot={false}
+                activeDot={{ r: 5 }}
+              />
+              <Line
+                type="monotone"
+                dataKey="coutAppro"
+                name="Coût appros"
+                stroke="#f87272"
+                strokeWidth={2}
+                strokeDasharray="5 3"
+                dot={false}
+                activeDot={{ r: 5 }}
+              />
+              <Line
+                type="monotone"
+                dataKey="caNet"
+                name="CA net"
+                stroke="#36d399"
                 strokeWidth={2}
                 dot={false}
                 activeDot={{ r: 5 }}
