@@ -1,6 +1,7 @@
 import DashBoard from "./pages/DashBoard";
 import StockPage from "./pages/StockPage";
 import VentePage from "./pages/VentePage";
+import VentesListPage from "./pages/VentesListPage";
 import InventoryPage from "./pages/InventoryPage";
 import { Routes, Route, useLocation } from "react-router-dom";
 import LoginPage from "./pages/LoginPage";
@@ -10,6 +11,8 @@ import RegisterPage from "./pages/RegisterPage";
 
 import "./App.css";
 import Header from "./components/header";
+import ApproPage from "./pages/ApproPage";
+import ApprosListPage from "./pages/ApprosListPage";
 
 function App() {
   const location = useLocation(); // Hook pour obtenir la localisation actuelle (URL) de l'application
@@ -25,7 +28,7 @@ function App() {
         <Route
           path="/"
           element={
-            <ProtecteRoute>
+            <ProtecteRoute adminOnly>
               <DashBoard />
             </ProtecteRoute>
           }
@@ -33,7 +36,7 @@ function App() {
         <Route
           path="/stock"
           element={
-            <ProtecteRoute>
+            <ProtecteRoute adminOnly>
               <StockPage />
             </ProtecteRoute>
           }
@@ -49,8 +52,32 @@ function App() {
         <Route
           path="/inventory"
           element={
-            <ProtecteRoute>
+            <ProtecteRoute adminOnly>
               <InventoryPage />
+            </ProtecteRoute>
+          }
+        />
+        <Route
+          path="/appro"
+          element={
+            <ProtecteRoute adminOnly>
+              <ApproPage />
+            </ProtecteRoute>
+          }
+        />
+        <Route
+          path="/appros"
+          element={
+            <ProtecteRoute adminOnly>
+              <ApprosListPage />
+            </ProtecteRoute>
+          }
+        />
+        <Route
+          path="/ventes"
+          element={
+            <ProtecteRoute adminOnly>
+              <VentesListPage />
             </ProtecteRoute>
           }
         />
@@ -64,8 +91,6 @@ function App() {
             </ProtecteRoute>
           }
         />
-        {/**Route to StockPage */}
-        {/**Route to VentePage */}
       </Routes>
     </>
   );

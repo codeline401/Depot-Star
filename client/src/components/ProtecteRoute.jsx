@@ -13,7 +13,7 @@ function isTokenValid(token) {
   }
 }
 
-function ProtecteRoute({ children }) {
+function ProtecteRoute({ children, adminOnly = false }) {
   // Composant de route protégée qui vérifie si l'utilisateur est authentifié
   const token = localStorage.getItem("token"); // Récupère le token JWT depuis le localStorage pour vérifier l'authentification
   let user = {};
@@ -31,10 +31,15 @@ function ProtecteRoute({ children }) {
 
   // Forcer le changment de mot de passe à la première connexion
   if (user.mustChangePassword) {
-    return <Navigate to="/change-password" replace />; // Redirige vers la page de changement de mot de passe si l'utilisateur doit changer son mot de passe
+    return <Navigate to="/change-password" replace />;
   }
 
-  return children; // Rend les enfants si l'utilisateur est authentifié
+  // Redirige les SELLER vers /vente si la route est réservée aux admins
+  if (adminOnly && user.role !== "ADMIN") {
+    return <Navigate to="/vente" replace />;
+  }
+
+  return children;
 }
 
 export default ProtecteRoute;

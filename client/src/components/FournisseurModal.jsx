@@ -36,7 +36,7 @@ export default function FournisseurModal({
     const adresse = form.adresse?.trim();
     const telephone = form.telephone?.trim();
     if (!nom || !adresse || !telephone) {
-      setError("Nom, adresse et téléphone sont obligatoires.");
+      setError("Tsy mantsy asiana Anarana, adiresy ary numéro téléphone");
       return;
     }
     setSaving(true);

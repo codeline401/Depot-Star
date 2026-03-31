@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import {
   AlertCircle,
+  HelpCircle,
   Package,
   Plus,
   Printer,
+  RotateCcw,
   ShoppingCart,
   Trash2,
   UserPlus,
@@ -11,9 +13,14 @@ import {
 } from "lucide-react";
 import { getAllArticles } from "../api/articleService";
 import { getAllClients, createClient } from "../api/clientService";
+import { getAllEmballages } from "../api/emballageService";
 import { createVente } from "../api/venteService";
+import { CAGEOT_CONSIGNE, openPrintWindow } from "../utils/invoiceBuilder";
 
 const NEW_CLIENT_EMPTY = { nom: "", adresse: "", telephone: "" };
+
+// Mapping prixConsigne bouteille → capacité cageot
+const BOTTLE_TO_CAGEOT = { 300: 24, 500: 20, 700: 12 };
 
 function getCurrentUser() {
   try {
@@ -23,101 +30,7 @@ function getCurrentUser() {
   }
 }
 
-function escapeHtml(str) {
-  return String(str)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
-}
-
-function buildInvoiceHTML(invoice) {
-  const lignesRows = invoice.lignes
-    .map((l) => {
-      const prixConsigneUnitaire =
-        l.article.aConsigner && l.quantite > 0 ? l.consigne / l.quantite : 0;
-      return `<tr>
-          <td>${escapeHtml(l.article.nom)}</td>
-          <td style="text-align:center">${escapeHtml(l.article.bottleType)}</td>
-          <td style="text-align:center">${l.article.aConsigner ? "Oui (+" + prixConsigneUnitaire.toLocaleString("fr-FR") + " Ar)" : "Non"}</td>
-          <td style="text-align:right">${l.quantite}</td>
-          <td style="text-align:right">${l.prixUnitaire.toLocaleString("fr-FR")} Ar</td>
-          <td style="text-align:right">${l.consigne > 0 ? l.consigne.toLocaleString("fr-FR") + " Ar" : "—"}</td>
-          <td style="text-align:right"><strong>${l.prixTotal.toLocaleString("fr-FR")} Ar</strong></td>
-        </tr>`;
-    })
-    .join("");
-
-  return `<!DOCTYPE html>
-<html lang="fr">
-<head>
-  <meta charset="UTF-8"/>
-  <title>Facture N° ${invoice.id} — ${escapeHtml(invoice.client.nom)}</title>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 48px; color: #111; }
-    h1 { font-size: 26px; margin: 0 0 4px; }
-    h2 { font-size: 16px; color: #555; font-weight: normal; margin: 0 0 28px; }
-    .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 28px; }
-    .meta-box { background: #f8f8f8; border: 1px solid #e0e0e0; padding: 14px 18px; border-radius: 6px; }
-    .meta-box p { margin: 4px 0; font-size: 14px; }
-    .meta-box .label { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: #888; margin-bottom: 6px; }
-    table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
-    th { background: #f0f0f0; border: 1px solid #ddd; padding: 9px 12px; text-align: left; font-size: 13px; }
-    td { border: 1px solid #ddd; padding: 9px 12px; font-size: 13px; }
-    .total-row td { font-size: 15px; background: #f5f5f5; }
-    .footer { margin-top: 48px; font-size: 12px; color: #aaa; text-align: center; border-top: 1px solid #eee; padding-top: 16px; }
-    @media print { body { margin: 24px; } }
-  </style>
-</head>
-<body>
-  <h1>Depot-Star</h1>
-  <h2>Facture N° ${invoice.id}</h2>
-  <div class="meta-grid">
-    <div class="meta-box">
-      <div class="label">Client</div>
-      <p><strong>${escapeHtml(invoice.client.nom)}</strong></p>
-      ${invoice.client.adresse ? `<p>${escapeHtml(invoice.client.adresse)}</p>` : ""}
-      ${invoice.client.telephone ? `<p>Tél. ${escapeHtml(invoice.client.telephone)}</p>` : ""}
-    </div>
-    <div class="meta-box">
-      <div class="label">Vendeur · Date</div>
-      <p>${escapeHtml(invoice.vendeur)}</p>
-      <p>${new Date(invoice.date).toLocaleString("fr-FR")}</p>
-    </div>
-  </div>
-  <table>
-    <thead>
-      <tr>
-        <th>Article</th>
-        <th style="text-align:center">Type</th>
-        <th style="text-align:center">Consigné</th>
-        <th style="text-align:right">Qté</th>
-        <th style="text-align:right">Prix unit.</th>
-        <th style="text-align:right">Consigne</th>
-        <th style="text-align:right">Total ligne</th>
-      </tr>
-    </thead>
-    <tbody>${lignesRows}</tbody>
-    <tfoot>
-      <tr class="total-row">
-        <td colspan="6" style="text-align:right"><strong>TOTAL</strong></td>
-        <td style="text-align:right"><strong>${invoice.total.toLocaleString("fr-FR")} Ar</strong></td>
-      </tr>
-    </tfoot>
-  </table>
-  <div class="footer">Merci de votre confiance — Depot-Star</div>
-  <script>window.onload = function(){ window.print(); }</script>
-</body>
-</html>`;
-}
-
-function openPrintWindow(invoice) {
-  const win = window.open("", "_blank");
-  if (!win) return;
-  win.document.write(buildInvoiceHTML(invoice));
-  win.document.close();
-}
+// (escapeHtml, buildInvoiceHTML, openPrintWindow → voir utils/invoiceBuilder.js)
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -126,6 +39,7 @@ export default function VentePage() {
 
   const [articles, setArticles] = useState([]);
   const [clients, setClients] = useState([]);
+  const [emballages, setEmballages] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const [clientId, setClientId] = useState("");
@@ -141,11 +55,23 @@ export default function VentePage() {
   const [processing, setProcessing] = useState(false);
   const [invoice, setInvoice] = useState(null);
 
+  // Retours bouteilles consignées : { [articleId]: quantite rendue }
+  const [consignesRendues, setConsignesRendues] = useState({});
+
+  // --- Gestion des cageots (question vendeur) ---
+  // cageotsActifs : null = question pas encore posée / true = oui / false = non
+  const [cageotsActifs, setCageotsActifs] = useState(null);
+  // cageotsCommandes : { [capacite]: quantite prise par le client (à consigner) }
+  const [cageotsCommandes, setCageotsCommandes] = useState({});
+  // cageotsRendus : { [capacite]: quantite rendue par le client (déduction) }
+  const [cageotsRendus, setCageotsRendus] = useState({});
+
   useEffect(() => {
-    Promise.all([getAllArticles(), getAllClients()])
-      .then(([arts, cls]) => {
+    Promise.all([getAllArticles(), getAllClients(), getAllEmballages()])
+      .then(([arts, cls, embs]) => {
         setArticles(arts);
         setClients(cls);
+        setEmballages(embs);
       })
       .catch(() => setError("Erreur lors du chargement des données."))
       .finally(() => setLoading(false));
@@ -217,22 +143,157 @@ export default function VentePage() {
     setSelectedQty(1);
   }
 
+  // Supprime une ligne de commande et nettoie les états liés
   function handleRemoveLigne(articleId) {
-    setLignes((prev) => prev.filter((l) => l.article.id !== articleId));
+    setLignes((prev) => {
+      const newLignes = prev.filter((l) => l.article.id !== articleId);
+      // Si plus aucune ligne VERRE consignée → réinitialiser la question cageots
+      const hasVerreConsigne = newLignes.some(
+        (l) => l.article.bottleType === "VERRE" && l.article.aConsigner,
+      );
+      if (!hasVerreConsigne) {
+        setCageotsActifs(null);
+        setCageotsCommandes({});
+        setCageotsRendus({});
+      }
+      return newLignes;
+    });
+    setConsignesRendues((prev) => {
+      const next = { ...prev };
+      delete next[articleId];
+      return next;
+    });
     setError(null);
   }
 
+  // Calcule le minimum de cageots nécessaires par groupe de capacité.
+  // Utilisé comme suggestion pré-remplie quand le vendeur dit "oui" à la question.
+  // Règle : on remplit un cageot entièrement avant d'en ouvrir un autre.
+  function calcCageotsMinimum() {
+    const totals = {};
+    for (const l of lignes) {
+      const a = l.article;
+      if (
+        a.bottleType === "VERRE" &&
+        a.aConsigner &&
+        BOTTLE_TO_CAGEOT[a.prixConsigne]
+      ) {
+        const cap = BOTTLE_TO_CAGEOT[a.prixConsigne];
+        if (!totals[cap])
+          totals[cap] = { totalBottles: 0, bouteillePrix: a.prixConsigne };
+        totals[cap].totalBottles += l.quantite;
+      }
+    }
+    const map = {};
+    for (const [cap, { totalBottles, bouteillePrix }] of Object.entries(
+      totals,
+    )) {
+      map[parseInt(cap)] = {
+        nbRequis: Math.ceil(totalBottles / parseInt(cap)),
+        bouteillePrix,
+      };
+    }
+    return map;
+  }
+
+  // Distribution marginale des cageots commandés par ligne (même logique que le backend).
+  // Chaque article reçoit les cageots qu'il "ouvre" dans son groupe de capacité.
+  // Ne retourne d'allocation QUE si des cageots ont été confirmés (cageotsActifs===true).
+  function calcCageotsParLigne() {
+    if (cageotsActifs !== true) return {}; // pas de cageots si non confirmés
+    const alloc = {}; // { articleId: { qteCageots, consigneCageot } }
+    const cum = {}; // { cap: cumul bouteilles du groupe }
+    for (const l of lignes) {
+      const a = l.article;
+      const cap = BOTTLE_TO_CAGEOT[a.prixConsigne];
+      // Uniquement les bouteilles VERRE consignées dont des cageots ont été commandés
+      if (
+        a.bottleType === "VERRE" &&
+        a.aConsigner &&
+        cap &&
+        (cageotsCommandes[cap] || 0) > 0
+      ) {
+        const cumBefore = cum[cap] || 0;
+        const cumAfter = cumBefore + l.quantite;
+        const qteCageots =
+          Math.ceil(cumAfter / cap) - Math.ceil(cumBefore / cap);
+        alloc[a.id] = {
+          qteCageots,
+          consigneCageot: qteCageots * CAGEOT_CONSIGNE,
+        };
+        cum[cap] = cumAfter;
+      }
+    }
+    return alloc;
+  }
+
+  function handleChangeLigneQty(articleId, newQty) {
+    if (newQty <= 0) {
+      handleRemoveLigne(articleId);
+      return;
+    }
+    const article = articles.find((a) => a.id === articleId);
+    if (!article) return;
+    if (newQty > article["quantitéStock"]) {
+      setError(
+        `Stock insuffisant pour "${article.nom}". Disponible : ${article["quantitéStock"]}`,
+      );
+      return;
+    }
+    setLignes((prev) =>
+      prev.map((l) =>
+        l.article.id === articleId ? { ...l, quantite: newQty } : l,
+      ),
+    );
+    setError(null);
+  }
+
+  // Calcule le total d'une ligne : (prix + consigne bouteille) × qté + consigne cageot attribuée
   function ligneTotal(l) {
+    const { consigneCageot: cageotCons = 0 } =
+      calcCageotsParLigne()[l.article.id] || {};
     return (
       (l.article.prix + (l.article.aConsigner ? l.article.prixConsigne : 0)) *
-      l.quantite
+        l.quantite +
+      cageotCons
     );
   }
 
   const selectedClient = clients.find((c) => c.id === parseInt(clientId));
+  // Suggestion de cageots minimums (pré-remplie dans les champs si le vendeur dit "oui")
+  const cageotsMinimum = calcCageotsMinimum();
 
+  // Totaux calculés en temps réel
   const total = lignes.reduce((sum, l) => sum + ligneTotal(l), 0);
+  const totalConsigneRendue = lignes
+    .filter((l) => l.article.aConsigner)
+    .reduce(
+      (sum, l) =>
+        sum + l.article.prixConsigne * (consignesRendues[l.article.id] || 0),
+      0,
+    );
 
+  // Déduction cageots rendus (seulement si cageots actifs)
+  const totalCageotsRendue =
+    cageotsActifs === true
+      ? Object.entries(cageotsRendus).reduce(
+          (sum, [, qty]) => sum + (qty || 0) * CAGEOT_CONSIGNE,
+          0,
+        )
+      : 0;
+
+  // Consigne totale pour les cageots commandés cette vente
+  const totalCageotsCommandes =
+    cageotsActifs === true
+      ? Object.entries(cageotsCommandes).reduce(
+          (sum, [, qty]) => sum + (qty || 0) * CAGEOT_CONSIGNE,
+          0,
+        )
+      : 0;
+
+  const totalFinal = total - totalConsigneRendue - totalCageotsRendue;
+
+  // Valide la vente et envoie au backend
   async function handleValider() {
     if (!clientId) {
       setError("Veuillez sélectionner un client.");
@@ -240,6 +301,15 @@ export default function VentePage() {
     }
     if (lignes.length === 0) {
       setError("Ajoutez au moins un article.");
+      return;
+    }
+    // Si des bouteilles VERRE consignées sont présentes et que la question cageots
+    // n'a pas été répondue, bloquer la validation.
+    const hasVerreConsigne = lignes.some(
+      (l) => l.article.bottleType === "VERRE" && l.article.aConsigner,
+    );
+    if (hasVerreConsigne && cageotsActifs === null) {
+      setError("Indiquez si le client a besoin de cageots avant de valider.");
       return;
     }
 
@@ -253,15 +323,43 @@ export default function VentePage() {
           articleId: l.article.id,
           quantite: l.quantite,
         })),
+        // Bouteilles rendues par le client
+        consignesRendues: Object.entries(consignesRendues)
+          .filter(([, qty]) => qty > 0)
+          .map(([id, quantite]) => ({ articleId: parseInt(id), quantite })),
+        // Cageots commandés (vides si le client n'en veut pas)
+        cageotsCommandes:
+          cageotsActifs === true
+            ? Object.entries(cageotsCommandes)
+                .filter(([, qty]) => qty > 0)
+                .map(([capacite, quantite]) => ({
+                  capacite: parseInt(capacite),
+                  quantite,
+                }))
+            : [],
+        // Cageots rendus (seulement si des cageots ont été commandés)
+        cageotsRendus:
+          cageotsActifs === true
+            ? Object.entries(cageotsRendus)
+                .filter(([, qty]) => qty > 0)
+                .map(([capacite, quantite]) => ({
+                  capacite: parseInt(capacite),
+                  quantite,
+                }))
+            : [],
       });
 
       setInvoice(result);
 
-      // Réinitialiser la commande immédiatement pour éviter les re-soumissions
+      // Réinitialiser tous les états du formulaire de vente
       setLignes([]);
       setClientId("");
       setSelectedArticleId("");
       setSelectedQty(1);
+      setConsignesRendues({});
+      setCageotsActifs(null);
+      setCageotsCommandes({});
+      setCageotsRendus({});
 
       // Rafraîchir le stock (non-bloquant, échec non-fatal)
       try {
@@ -544,21 +642,61 @@ export default function VentePage() {
                             )}
                           </div>
                         </td>
-                        <td className="text-center tabular-nums">
-                          {l.quantite}
+                        <td className="text-center">
+                          <div className="flex items-center justify-center gap-1">
+                            <button
+                              className="btn btn-ghost btn-xs px-1"
+                              onClick={() =>
+                                handleChangeLigneQty(
+                                  l.article.id,
+                                  l.quantite - 1,
+                                )
+                              }
+                            >
+                              −
+                            </button>
+                            <span className="tabular-nums w-6 text-center font-medium">
+                              {l.quantite}
+                            </span>
+                            <button
+                              className="btn btn-ghost btn-xs px-1"
+                              onClick={() =>
+                                handleChangeLigneQty(
+                                  l.article.id,
+                                  l.quantite + 1,
+                                )
+                              }
+                            >
+                              +
+                            </button>
+                          </div>
                         </td>
                         <td className="text-right tabular-nums">
                           {l.article.prix.toLocaleString("fr-FR")} Ar
                         </td>
                         <td className="text-right tabular-nums">
                           {l.article.aConsigner ? (
-                            <span className="text-warning">
-                              +
-                              {(
-                                l.article.prixConsigne * l.quantite
-                              ).toLocaleString("fr-FR")}{" "}
-                              Ar
-                            </span>
+                            <div className="flex flex-col items-end gap-0.5">
+                              <span className="text-warning">
+                                +
+                                {(
+                                  l.article.prixConsigne * l.quantite
+                                ).toLocaleString("fr-FR")}{" "}
+                                Ar
+                              </span>
+                              {(() => {
+                                const { qteCageots = 0, consigneCageot = 0 } =
+                                  calcCageotsParLigne()[l.article.id] || {};
+                                return qteCageots > 0 ? (
+                                  <span className="text-amber-500 text-xs">
+                                    cageot +
+                                    {consigneCageot.toLocaleString("fr-FR")} Ar
+                                    ({qteCageots} cageot
+                                    {qteCageots > 1 ? "s" : ""})
+                                  </span>
+                                ) : null;
+                              })()}
+                            </div>
                           ) : (
                             "—"
                           )}
@@ -581,12 +719,47 @@ export default function VentePage() {
 
                 {lignes.length > 0 && (
                   <tfoot>
+                    {(totalConsigneRendue > 0 || totalCageotsRendue > 0) && (
+                      <>
+                        <tr className="text-sm text-base-content/60">
+                          <td colSpan={4} className="text-right">
+                            Sous-total
+                          </td>
+                          <td className="text-right tabular-nums">
+                            {total.toLocaleString("fr-FR")} Ar
+                          </td>
+                          <td></td>
+                        </tr>
+                        {totalConsigneRendue > 0 && (
+                          <tr className="text-sm text-success">
+                            <td colSpan={4} className="text-right">
+                              ↩ Consignes bouteilles rendues
+                            </td>
+                            <td className="text-right tabular-nums">
+                              −{totalConsigneRendue.toLocaleString("fr-FR")} Ar
+                            </td>
+                            <td></td>
+                          </tr>
+                        )}
+                        {totalCageotsRendue > 0 && (
+                          <tr className="text-sm text-amber-600">
+                            <td colSpan={4} className="text-right">
+                              ↩ Consignes cageots rendus
+                            </td>
+                            <td className="text-right tabular-nums">
+                              −{totalCageotsRendue.toLocaleString("fr-FR")} Ar
+                            </td>
+                            <td></td>
+                          </tr>
+                        )}
+                      </>
+                    )}
                     <tr className="font-bold text-base">
                       <td colSpan={4} className="text-right">
-                        TOTAL
+                        TOTAL NET
                       </td>
                       <td className="text-right text-primary tabular-nums">
-                        {total.toLocaleString("fr-FR")} Ar
+                        {totalFinal.toLocaleString("fr-FR")} Ar
                       </td>
                       <td></td>
                     </tr>
@@ -601,6 +774,251 @@ export default function VentePage() {
                 ★ Consigne incluse au prix de vente selon le tarif de chaque
                 article.
               </p>
+            )}
+
+            {/* Bouteilles rendues */}
+            {lignes.some((l) => l.article.aConsigner) && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <RotateCcw className="size-4 text-success" />
+                  <span className="font-medium text-sm">
+                    Bouteilles rendues par le client
+                  </span>
+                </div>
+                <div className="rounded-box border border-base-200 p-3 space-y-2 bg-base-50">
+                  {lignes
+                    .filter((l) => l.article.aConsigner)
+                    .map(({ article, quantite }) => (
+                      <div key={article.id} className="flex items-center gap-2">
+                        <span className="text-sm flex-1 truncate">
+                          {article.nom}
+                          <span className="text-base-content/40 ml-1 text-xs">
+                            (achetés : {quantite})
+                          </span>
+                        </span>
+                        <span className="text-xs text-success whitespace-nowrap">
+                          −{article.prixConsigne.toLocaleString("fr-FR")} Ar/u
+                        </span>
+                        <input
+                          type="number"
+                          min={0}
+                          className="input input-bordered input-sm w-20"
+                          value={consignesRendues[article.id] || ""}
+                          placeholder="0"
+                          onChange={(e) => {
+                            const qty = Math.max(
+                              0,
+                              parseInt(e.target.value) || 0,
+                            );
+                            setConsignesRendues((prev) => ({
+                              ...prev,
+                              [article.id]: qty,
+                            }));
+                          }}
+                        />
+                      </div>
+                    ))}
+                  {totalConsigneRendue > 0 && (
+                    <div className="flex justify-between items-center pt-2 border-t border-base-200 font-semibold text-success">
+                      <span className="text-sm">
+                        Déduction consignes bouteilles
+                      </span>
+                      <span className="tabular-nums">
+                        −{totalConsigneRendue.toLocaleString("fr-FR")} Ar
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* ── Question cageots ──────────────────────────────────────── */}
+            {/* Affichée uniquement s'il y a des bouteilles VERRE consignées */}
+            {lignes.some(
+              (l) => l.article.bottleType === "VERRE" && l.article.aConsigner,
+            ) && (
+              <div className="space-y-3">
+                {/* Question oui/non */}
+                <div className="rounded-box border border-base-300 p-3 bg-base-50 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <HelpCircle className="size-4 text-amber-500" />
+                    <span className="font-medium text-sm">
+                      Des cageots sont-ils nécessaires pour cette vente ?
+                    </span>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      className={`btn btn-sm flex-1 ${cageotsActifs === true ? "btn-warning" : "btn-outline"}`}
+                      onClick={() => {
+                        // Pré-remplir avec le minimum calculé
+                        const newCmd = {};
+                        for (const [cap, { nbRequis }] of Object.entries(
+                          cageotsMinimum,
+                        )) {
+                          newCmd[parseInt(cap)] = nbRequis;
+                        }
+                        setCageotsActifs(true);
+                        setCageotsCommandes(newCmd);
+                        setCageotsRendus({});
+                      }}
+                    >
+                      Oui
+                    </button>
+                    <button
+                      type="button"
+                      className={`btn btn-sm flex-1 ${cageotsActifs === false ? "btn-neutral" : "btn-outline"}`}
+                      onClick={() => {
+                        setCageotsActifs(false);
+                        setCageotsCommandes({});
+                        setCageotsRendus({});
+                      }}
+                    >
+                      Non
+                    </button>
+                  </div>
+
+                  {/* Si oui : saisie du nombre de cageots commandés */}
+                  {cageotsActifs === true && (
+                    <div className="space-y-2 pt-1 border-t border-base-200">
+                      <p className="text-xs text-base-content/60">
+                        Combien de cageots le client prend-il ? (consignés à{" "}
+                        {CAGEOT_CONSIGNE.toLocaleString("fr-FR")} Ar/u)
+                      </p>
+                      {Object.entries(cageotsMinimum).map(
+                        ([cap, { nbRequis }]) => {
+                          const capacite = parseInt(cap);
+                          const stockCageot =
+                            emballages.find(
+                              (e) =>
+                                e.type === "CAGEOT" && e.capacite === capacite,
+                            )?.quantiteStock ?? 0;
+                          return (
+                            <div
+                              key={capacite}
+                              className="flex items-center gap-2"
+                            >
+                              <span className="text-sm flex-1">
+                                Cageot {capacite} bouteilles
+                                <span className="text-base-content/40 ml-1 text-xs">
+                                  (min : {nbRequis}, stock : {stockCageot})
+                                </span>
+                              </span>
+                              <span className="text-xs text-amber-600 whitespace-nowrap">
+                                +{CAGEOT_CONSIGNE.toLocaleString("fr-FR")} Ar/u
+                              </span>
+                              <input
+                                type="number"
+                                min={0}
+                                max={stockCageot}
+                                className="input input-bordered input-sm w-20 border-amber-300"
+                                value={cageotsCommandes[capacite] ?? ""}
+                                placeholder={String(nbRequis)}
+                                onChange={(e) => {
+                                  const qty = Math.min(
+                                    stockCageot,
+                                    Math.max(0, parseInt(e.target.value) || 0),
+                                  );
+                                  setCageotsCommandes((prev) => ({
+                                    ...prev,
+                                    [capacite]: qty,
+                                  }));
+                                  // Réinitialiser retour si on réduit en dessous du retour en cours
+                                  setCageotsRendus((prev) => {
+                                    const retour = prev[capacite] || 0;
+                                    return retour > qty
+                                      ? { ...prev, [capacite]: qty }
+                                      : prev;
+                                  });
+                                }}
+                              />
+                            </div>
+                          );
+                        },
+                      )}
+                      {totalCageotsCommandes > 0 && (
+                        <div className="flex justify-between items-center pt-2 border-t border-amber-200 font-semibold text-amber-600">
+                          <span className="text-sm">
+                            Total consigne cageots
+                          </span>
+                          <span className="tabular-nums">
+                            +{totalCageotsCommandes.toLocaleString("fr-FR")} Ar
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Retour cageots : seulement si des cageots ont été commandés */}
+                {cageotsActifs === true &&
+                  Object.values(cageotsCommandes).some((q) => q > 0) && (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <RotateCcw className="size-4 text-amber-500" />
+                        <span className="font-medium text-sm">
+                          Cageots rendus par le client
+                        </span>
+                      </div>
+                      <div className="rounded-box border border-amber-200 p-3 space-y-2 bg-amber-50">
+                        {Object.entries(cageotsCommandes)
+                          .filter(([, qty]) => qty > 0)
+                          .map(([cap]) => {
+                            const capacite = parseInt(cap);
+                            const maxRetour = cageotsCommandes[capacite] || 0;
+                            return (
+                              <div
+                                key={capacite}
+                                className="flex items-center gap-2"
+                              >
+                                <span className="text-sm flex-1">
+                                  Cageot {capacite} bouteilles
+                                  <span className="text-base-content/40 ml-1 text-xs">
+                                    (commandés : {maxRetour})
+                                  </span>
+                                </span>
+                                <span className="text-xs text-amber-600 whitespace-nowrap">
+                                  −{CAGEOT_CONSIGNE.toLocaleString("fr-FR")}{" "}
+                                  Ar/u
+                                </span>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={maxRetour}
+                                  className="input input-bordered input-sm w-20 border-amber-300"
+                                  value={cageotsRendus[capacite] || ""}
+                                  placeholder="0"
+                                  onChange={(e) => {
+                                    const qty = Math.min(
+                                      maxRetour,
+                                      Math.max(
+                                        0,
+                                        parseInt(e.target.value) || 0,
+                                      ),
+                                    );
+                                    setCageotsRendus((prev) => ({
+                                      ...prev,
+                                      [capacite]: qty,
+                                    }));
+                                  }}
+                                />
+                              </div>
+                            );
+                          })}
+                        {totalCageotsRendue > 0 && (
+                          <div className="flex justify-between items-center pt-2 border-t border-amber-200 font-semibold text-amber-600">
+                            <span className="text-sm">
+                              Déduction consignes cageots
+                            </span>
+                            <span className="tabular-nums">
+                              −{totalCageotsRendue.toLocaleString("fr-FR")} Ar
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+              </div>
             )}
 
             {/* Valider */}

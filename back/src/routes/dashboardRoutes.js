@@ -32,7 +32,7 @@ router.get("/stats", authMiddleware, adminMiddleware, async (req, res) => {
     sevenDaysAgo.setHours(0, 0, 0, 0);
 
     // Chargement parallèle
-    const [ventes, articles, nbClients] = await Promise.all([
+    const [ventes, articles, nbClients, approsValides] = await Promise.all([
       prisma.vente.findMany({
         include: { client: true, lignes: true },
         orderBy: { date: "asc" },
@@ -49,6 +49,11 @@ router.get("/stats", authMiddleware, adminMiddleware, async (req, res) => {
         },
       }),
       prisma.client.count(),
+      // Coûts des appros validées (déduction du CA)
+      prisma.appro.findMany({
+        where: { status: "VALIDE" },
+        select: { coutTotal: true, dateValidation: true },
+      }),
     ]);
 
     // ── KPIs ──────────────────────────────────────────────────────────────────
@@ -60,20 +65,39 @@ router.get("/stats", authMiddleware, adminMiddleware, async (req, res) => {
     const ventesMois = ventes.filter((v) => new Date(v.date) >= startOfMonth);
     const caMois = ventesMois.reduce((s, v) => s + v.total, 0);
 
+    // Coûts d'approvisionnement validés (déduits du CA pour le CA net)
+    const coutApproTotal =
+      Math.round(approsValides.reduce((s, a) => s + a.coutTotal, 0) * 100) /
+      100;
+    const coutApproMois =
+      Math.round(
+        approsValides
+          .filter(
+            (a) =>
+              a.dateValidation && new Date(a.dateValidation) >= startOfMonth,
+          )
+          .reduce((s, a) => s + a.coutTotal, 0) * 100,
+      ) / 100;
+    // CA net = recettes ventes − coût des appros
+    const caNetTotal = Math.round((caTotal - coutApproTotal) * 100) / 100;
+    const caNetMois = Math.round((caMois - coutApproMois) * 100) / 100;
+
     const stockFaibleCount = articles.filter(
       (a) => a["quantitéStock"] <= 5,
     ).length;
 
     // ── Valeur du stock & des emballages ─────────────────────────────────────
-    const valeurStock = Math.round(
-      articles.reduce((s, a) => s + a.prix * a["quantitéStock"], 0) * 100
-    ) / 100;
+    const valeurStock =
+      Math.round(
+        articles.reduce((s, a) => s + a.prix * a["quantitéStock"], 0) * 100,
+      ) / 100;
 
-    const valeurEmballages = Math.round(
-      articles
-        .filter((a) => a.aConsigner)
-        .reduce((s, a) => s + a.prixConsigne * a["quantitéStock"], 0) * 100
-    ) / 100;
+    const valeurEmballages =
+      Math.round(
+        articles
+          .filter((a) => a.aConsigner)
+          .reduce((s, a) => s + a.prixConsigne * a["quantitéStock"], 0) * 100,
+      ) / 100;
 
     // ── Courbe ventes (30 derniers jours) ────────────────────────────────────
     const ventesParJourMap = {};
@@ -168,6 +192,33 @@ router.get("/stats", authMiddleware, adminMiddleware, async (req, res) => {
       .sort((a, b) => b.ca - a.ca)
       .slice(0, 5);
 
+    // ── Coût appros par jour sur 30 jours (pour superposition avec CA) ───────
+    const approsParJourMap = {};
+    approsValides
+      .filter(
+        (a) => a.dateValidation && new Date(a.dateValidation) >= thirtyDaysAgo,
+      )
+      .forEach((a) => {
+        const d = new Date(a.dateValidation);
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        if (!approsParJourMap[key])
+          approsParJourMap[key] = { date: key, coutAppro: 0 };
+        approsParJourMap[key].coutAppro =
+          Math.round(
+            (approsParJourMap[key].coutAppro + a.coutTotal) * 100,
+          ) / 100;
+      });
+
+    const approsParJour = [];
+    for (let i = 0; i < 30; i++) {
+      const d = new Date(thirtyDaysAgo);
+      d.setDate(d.getDate() + i);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      approsParJour.push(
+        approsParJourMap[key] || { date: key, coutAppro: 0 },
+      );
+    }
+
     // ── CA par vendeur sur 7 jours (stacked chart) ───────────────────────────
     const vendeurs7j = [
       ...new Set(
@@ -209,8 +260,14 @@ router.get("/stats", authMiddleware, adminMiddleware, async (req, res) => {
         nbClients,
         nbArticles: articles.length,
         stockFaibleCount,
+        // Appro
+        coutApproTotal,
+        coutApproMois,
+        caNetTotal,
+        caNetMois,
       },
       ventesParJour,
+      approsParJour,
       topVendeurs,
       topArticles,
       stockFaible,
