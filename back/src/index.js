@@ -5,7 +5,11 @@ require("dotenv").config(); // Load environment variables from a .env file
 
 const app = express(); // Create an instance of the Express application
 
-app.use(cors({ origin: ["http://localhost:5173", "http://localhost:5174"] })); // Enable CORS for requests from the specified origin
+const allowedOrigins = process.env.FRONTEND_URL
+  ? [process.env.FRONTEND_URL, "http://localhost:5173", "http://localhost:5174"]
+  : ["http://localhost:5173", "http://localhost:5174"];
+
+app.use(cors({ origin: allowedOrigins })); // Enable CORS for requests from the specified origin
 app.use(express.json()); // Middleware to parse JSON request bodies
 
 // ROUTES
