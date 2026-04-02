@@ -125,6 +125,27 @@ enum ApproStatus {
     VALIDE  // Marchandises entrées en stock
 }
 
+enum MouvementType {
+    VENTE       // Sortie de stock suite à une vente
+    APPRO       // Entrée de stock suite à une validation d'appro
+    CORRECTION  // Ajustement manuel (casse, vol, inventaire physique)
+}
+
+// Historique de chaque mouvement de stock par article
+model MouvementStock {
+    id         Int           @id @default(autoincrement())
+    date       DateTime      @default(now())
+    articleId  Int
+    articleNom String        // snapshot du nom à la date du mouvement
+    type       MouvementType
+    quantite   Int           // positif = entrée, négatif = sortie
+    motif      String?       // obligatoire pour CORRECTION
+    refId      Int?          // id de la Vente ou de l'Appro source
+
+    @@index([articleId])
+    @@index([type])
+}
+
 // Ordre d'approvisionnement : créé au "checker", validé à l'entrée en stock
 model Appro {
     id             Int          @id @default(autoincrement())

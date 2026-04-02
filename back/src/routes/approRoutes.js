@@ -130,6 +130,20 @@ router.put(
             },
           });
         }
+
+        // ── Traçabilité : mouvement de stock par ligne d'appro ────────────────
+        for (const ligne of appro.lignes) {
+          await tx.mouvementStock.create({
+            data: {
+              articleId: ligne.articleId,
+              articleNom: ligne.articleNom,
+              type: "APPRO",
+              quantite: ligne.qteCommandee, // entrée = positif
+              refId: appro.id,
+            },
+          });
+        }
+
         return appro;
       });
 
