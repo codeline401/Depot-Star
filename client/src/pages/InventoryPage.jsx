@@ -40,9 +40,10 @@ function getStatut(stock, seuil) {
 }
 
 function labelEmballage(e) {
+  const consigne = e.prixConsigne ?? 0;
   if (e.type === "CAGEOT")
-    return `Cageot ${e.capacite} bouteilles (consigne ${e.prixConsigne.toLocaleString("fr-FR")} Ar)`;
-  return `Bouteille vide — consigne ${e.prixConsigne.toLocaleString("fr-FR")} Ar`;
+    return `Cageot ${e.capacite ?? 0} bouteilles (consigne ${consigne.toLocaleString("fr-FR")}) Ar`;
+  return `Bouteille vide - Consigne ${consigne.toLocaleString("fr-FR")} Ar`;
 }
 
 function fmtDate(iso) {
@@ -127,7 +128,19 @@ function ArticleRow({ article, seuil, onCorrection }) {
 
   return (
     <>
-      <tr className="hover cursor-pointer select-none" onClick={handleExpand}>
+      <tr
+        className="hover cursor-pointer select-none"
+        onClick={handleExpand}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            handleExpand();
+          }
+        }}
+        tabIndex={0}
+        role="button"
+        aria-expanded={open}
+      >
         <td className="w-6">
           {open ? (
             <ChevronDown className="size-4 text-base-content/50" />
@@ -192,10 +205,9 @@ function ArticleRow({ article, seuil, onCorrection }) {
                   Chargement…
                 </div>
               )}
-              {mouvError && (
-                <p className="text-error text-sm">{mouvError}</p>
-              )}
-              {mouvements !== null && !loadingMouv &&
+              {mouvError && <p className="text-error text-sm">{mouvError}</p>}
+              {mouvements !== null &&
+                !loadingMouv &&
                 (mouvements.length === 0 ? (
                   <p className="text-base-content/40 text-sm italic">
                     Aucun mouvement enregistré.
@@ -226,7 +238,11 @@ function ArticleRow({ article, seuil, onCorrection }) {
                             {m.quantite}
                           </td>
                           <td className="text-xs text-base-content/60">
-                            {m.motif ? m.motif : m.refId ? `Réf. #${m.refId}` : "—"}
+                            {m.motif
+                              ? m.motif
+                              : m.refId
+                                ? `Réf. #${m.refId}`
+                                : "—"}
                           </td>
                         </tr>
                       ))}
@@ -261,9 +277,7 @@ function EmballageRow({ emballage }) {
         {emballage.prixConsigne.toLocaleString("fr-FR")} Ar
       </td>
       <td className="text-right tabular-nums font-semibold">
-        <span
-          className={emballage.quantiteStock === 0 ? "text-error" : ""}
-        >
+        <span className={emballage.quantiteStock === 0 ? "text-error" : ""}>
           {emballage.quantiteStock}
         </span>
       </td>
@@ -336,7 +350,9 @@ function CorrectionModal({ article, onClose, onSaved }) {
             <div className="label">
               <span className="label-text">
                 Quantité{" "}
-                <span className="text-base-content/50">(+ entrée, − sortie)</span>
+                <span className="text-base-content/50">
+                  (+ entrée, − sortie)
+                </span>
               </span>
             </div>
             <input
@@ -370,11 +386,7 @@ function CorrectionModal({ article, onClose, onSaved }) {
             >
               Annuler
             </button>
-            <button
-              type="submit"
-              className="btn btn-primary"
-              disabled={saving}
-            >
+            <button type="submit" className="btn btn-primary" disabled={saving}>
               {saving && (
                 <span className="loading loading-spinner loading-xs" />
               )}
@@ -411,9 +423,9 @@ export default function InventoryPage() {
   // ── Inventaire physique : étapes ──────────────────────────────────────────
   // "idle" → "saisie" → "rapport" → "done"
   const [invStep, setInvStep] = useState("idle");
-  const [saisieCounts, setSaisieCounts] = useState({});   // { "a-{id}": "15", "e-{id}": "8" }
-  const [ecartLines, setEcartLines] = useState([]);        // lines avec écart ≠ 0
-  const [explications, setExplications] = useState({});   // { key: "texte" }
+  const [saisieCounts, setSaisieCounts] = useState({}); // { "a-{id}": "15", "e-{id}": "8" }
+  const [ecartLines, setEcartLines] = useState([]); // lines avec écart ≠ 0
+  const [explications, setExplications] = useState({}); // { key: "texte" }
   const [validating, setValidating] = useState(false);
   const [validateError, setValidateError] = useState(null);
   const [doneRapport, setDoneRapport] = useState(null);
@@ -579,6 +591,7 @@ export default function InventoryPage() {
       });
       setDoneRapport(rapport);
       setInvStep("done");
+      setValidating(false); // juste pour réactiver le bouton au cas où l'utilisateur veut revoir le rapport
       await load();
     } catch (err) {
       setValidateError(
@@ -810,6 +823,7 @@ export default function InventoryPage() {
                     });
                     setDoneRapport(rapport);
                     setInvStep("done");
+                    await load(); // pour rafraîchir les stocks affichés dans le rapport
                   } catch {
                     setValidateError("Erreur lors de la confirmation.");
                   } finally {
@@ -842,8 +856,8 @@ export default function InventoryPage() {
             {ecartArticles.length > 0 && (
               <div>
                 <h2 className="font-semibold mb-2 flex items-center gap-2">
-                  <Package className="size-4" /> Articles ({ecartArticles.length}{" "}
-                  écart(s))
+                  <Package className="size-4" /> Articles (
+                  {ecartArticles.length} écart(s))
                 </h2>
                 <div className="overflow-x-auto rounded-lg border border-base-300">
                   <table className="table table-sm w-full">
@@ -855,7 +869,9 @@ export default function InventoryPage() {
                         <th className="text-right">Écart</th>
                         <th>
                           Explication{" "}
-                          <span className="text-error text-xs">* obligatoire</span>
+                          <span className="text-error text-xs">
+                            * obligatoire
+                          </span>
                         </th>
                       </tr>
                     </thead>
@@ -863,7 +879,9 @@ export default function InventoryPage() {
                       {ecartArticles.map((l) => (
                         <tr
                           key={l.key}
-                          className={l.ecart < 0 ? "bg-error/10" : "bg-success/10"}
+                          className={
+                            l.ecart < 0 ? "bg-error/10" : "bg-success/10"
+                          }
                         >
                           <td className="font-medium">{l.nom}</td>
                           <td className="text-right tabular-nums text-base-content/60">
@@ -920,7 +938,9 @@ export default function InventoryPage() {
                       {ecartEmballages.map((l) => (
                         <tr
                           key={l.key}
-                          className={l.ecart < 0 ? "bg-error/10" : "bg-success/10"}
+                          className={
+                            l.ecart < 0 ? "bg-error/10" : "bg-success/10"
+                          }
                         >
                           <td className="font-medium">{l.nom}</td>
                           <td className="text-right tabular-nums text-base-content/60">
@@ -1345,4 +1365,4 @@ export default function InventoryPage() {
       )}
     </div>
   );
-}
+}

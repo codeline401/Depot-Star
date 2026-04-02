@@ -68,6 +68,14 @@ router.post("/", authMiddleware, adminMiddleware, async (req, res) => {
       return res.status(404).json({ error: "Article introuvable." });
     }
 
+    // Prevent négative stock
+    const newStock = article["quantitéStock"] + parsedQty;
+    if (newStock < 0) {
+      return res.status(400).json({
+        error: `Stock insuffisant. Stock actuel: ${article["quantitéStock"]}, correction demandée: ${parsedQty}.`,
+      });
+    }
+
     // Transaction : mise à jour stock + trace mouvement
     const [mouvement] = await prisma.$transaction([
       prisma.mouvementStock.create({
@@ -115,8 +123,12 @@ router.post(
       }
 
       // ── Re-lecture DB pour garantir les stocks théoriques ──────────────────
-      const articleIds = articles.map((l) => parseInt(l.articleId, 10)).filter(Boolean);
-      const emballageIds = emballages.map((l) => parseInt(l.emballageId, 10)).filter(Boolean);
+      const articleIds = articles
+        .map((l) => parseInt(l.articleId, 10))
+        .filter(Boolean);
+      const emballageIds = emballages
+        .map((l) => parseInt(l.emballageId, 10))
+        .filter(Boolean);
 
       const [dbArticles, dbEmballages] = await Promise.all([
         articleIds.length > 0
@@ -128,11 +140,14 @@ router.post(
       ]);
 
       const articleMap = Object.fromEntries(dbArticles.map((a) => [a.id, a]));
-      const emballageMap = Object.fromEntries(dbEmballages.map((e) => [e.id, e]));
+      const emballageMap = Object.fromEntries(
+        dbEmballages.map((e) => [e.id, e]),
+      );
 
       // ── Calcul des écarts ──────────────────────────────────────────────────
       const rapportArticles = [];
       const rapportEmballages = [];
+      const invalidItems = [];
 
       for (const l of articles) {
         const id = parseInt(l.articleId, 10);
@@ -140,7 +155,16 @@ router.post(
         if (!article) continue;
         const theorique = article["quantitéStock"];
         const reel = parseInt(l.stockReel, 10);
-        if (isNaN(reel) || reel < 0) continue;
+        if (isNaN(reel) || reel < 0) {
+          invalidItems.push({
+            type: "article",
+            id,
+            nom: article.nom,
+            stockReel: l.stockReel,
+            raison: isNaN(reel) ? "valeur non numérique" : "valeur négative",
+          });
+          continue;
+        }
         rapportArticles.push({
           articleId: id,
           nom: article.nom,
@@ -157,7 +181,16 @@ router.post(
         if (!emballage) continue;
         const theorique = emballage.quantiteStock;
         const reel = parseInt(l.stockReel, 10);
-        if (isNaN(reel) || reel < 0) continue;
+        if (isNaN(reel) || reel < 0) {
+          invalidItems.push({
+            type: "emballage",
+            id,
+            targetLabel: `${emballage.type} cap.${emballage.capacite}`,
+            stockReel: l.stockReel,
+            raison: isNaN(reel) ? "valeur non numérique" : "valeur négative",
+          });
+          continue;
+        }
         rapportEmballages.push({
           emballageId: id,
           type: emballage.type,
@@ -166,6 +199,14 @@ router.post(
           theorique,
           reel,
           ecart: reel - theorique,
+        });
+      }
+
+      if (invalidItems.length > 0) {
+        return res.status(400).json({
+          error:
+            "Certains articles ou emballages ont une valeur de stock invalide.",
+          invalidItems,
         });
       }
 
@@ -192,7 +233,16 @@ router.post(
           if (r.ecart !== 0) {
             await tx.emballage.update({
               where: { id: r.emballageId },
-              data: { quantiteStock: r.reel },
+              data: { quantiteStock: { increment: r.ecart } },
+            });
+            await tx.emballageMouvement.create({
+              data: {
+                emballageId: r.emballageId,
+                targetLabel: `${r.type} cap.${r.capacite}`,
+                type: "CORRECTION",
+                quantite: r.ecart,
+                motif: "Inventaire physique",
+              },
             });
           }
         }
@@ -201,9 +251,9 @@ router.post(
       res.json({ articles: rapportArticles, emballages: rapportEmballages });
     } catch (err) {
       console.error("Erreur inventaire physique:", err);
-      res
-        .status(500)
-        .json({ error: "Erreur lors de la validation de l'inventaire physique." });
+      res.status(500).json({
+        error: "Erreur lors de la validation de l'inventaire physique.",
+      });
     }
   },
 );

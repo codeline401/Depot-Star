@@ -146,6 +146,21 @@ model MouvementStock {
     @@index([type])
 }
 
+// Historique des ajustements de stock d'emballage (inventaire physique)
+model EmballageMouvement {
+    id          Int           @id @default(autoincrement())
+    date        DateTime      @default(now())
+    emballageId Int
+    targetLabel String        // snapshot ex. "BOUTEILLE cap.0" à la date du mouvement
+    type        MouvementType
+    quantite    Int           // positif = entrée, négatif = sortie
+    motif       String?       // obligatoire pour CORRECTION
+    refId       Int?          // réservé pour usage futur
+
+    @@index([emballageId])
+    @@index([type])
+}
+
 // Ordre d'approvisionnement : créé au "checker", validé à l'entrée en stock
 model Appro {
     id             Int          @id @default(autoincrement())
