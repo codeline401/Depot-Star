@@ -837,6 +837,11 @@ export default function InventoryPage() {
                 Confirmer l'inventaire
               </button>
             </div>
+            {validateError && (
+              <div className="alert alert-error text-sm">
+                <AlertCircle className="size-4 shrink-0" /> {validateError}
+              </div>
+            )}
           </>
         ) : (
           <>
@@ -953,7 +958,7 @@ export default function InventoryPage() {
                             <EcartCell ecart={l.ecart} />
                           </td>
                           <td className="text-xs text-base-content/40 italic">
-                            Stock mis à jour sans trace
+                            Stock mis à jour (correction enregistrée)
                           </td>
                         </tr>
                       ))}
@@ -1278,7 +1283,7 @@ export default function InventoryPage() {
                 <tbody>
                   {filtered.map((a) => (
                     <ArticleRow
-                      key={a.id}
+                      key={`${a.id}-${a["quantitéStock"]}`}
                       article={a}
                       seuil={seuil}
                       onCorrection={setCorrectionArticle}

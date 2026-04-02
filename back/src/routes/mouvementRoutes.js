@@ -11,12 +11,11 @@ router.get("/", authMiddleware, adminMiddleware, async (req, res) => {
     const { articleId } = req.query; // Récupère le paramètre de requête articleId (optionnel)
     const where = {}; // Objet de filtrage pour la requête Prisma
     if (articleId) {
-      const parsedId = parseInt(articleId, 10); // Tente de convertir articleId en entier
-      if (isNaN(parsedId) || parsedId <= 0) {
-        // Vérifie que l'articleId est un entier positif valide
-        return res.status(400).json({ error: "articleId invalide." }); // Retourne une erreur 400 si articleId est invalide
+      const parsedId = parseInt(articleId, 10);
+      if (String(parsedId) !== String(articleId).trim() || parsedId <= 0) {
+        return res.status(400).json({ error: "articleId invalide." });
       }
-      where.articleId = parsedId; // Ajoute le filtre articleId à l'objet where pour la requête Prisma
+      where.articleId = parsedId;
     }
 
     const mouvements = await prisma.mouvementStock.findMany({
@@ -44,12 +43,12 @@ router.post("/", authMiddleware, adminMiddleware, async (req, res) => {
     const { articleId, quantite, motif } = req.body;
 
     const parsedId = parseInt(articleId, 10);
-    if (isNaN(parsedId) || parsedId <= 0) {
+    if (String(parsedId) !== String(articleId).trim() || parsedId <= 0) {
       return res.status(400).json({ error: "articleId invalide." });
     }
 
     const parsedQty = parseInt(quantite, 10);
-    if (isNaN(parsedQty) || parsedQty === 0) {
+    if (String(parsedQty) !== String(quantite).trim() || parsedQty === 0) {
       return res
         .status(400)
         .json({ error: "quantite invalide (entier non nul)." });
@@ -61,24 +60,29 @@ router.post("/", authMiddleware, adminMiddleware, async (req, res) => {
         .json({ error: "motif obligatoire pour une correction." });
     }
 
-    const article = await prisma.article.findUnique({
-      where: { id: parsedId },
-    });
-    if (!article) {
-      return res.status(404).json({ error: "Article introuvable." });
-    }
+    // Transaction atomique : lecture article + garde stock + trace mouvement
+    const mouvement = await prisma.$transaction(async (tx) => {
+      const article = await tx.article.findUnique({ where: { id: parsedId } });
+      if (!article) {
+        const err = new Error("Article introuvable.");
+        err.httpStatus = 404;
+        throw err;
+      }
 
-    // Prevent négative stock
-    const newStock = article["quantitéStock"] + parsedQty;
-    if (newStock < 0) {
-      return res.status(400).json({
-        error: `Stock insuffisant. Stock actuel: ${article["quantitéStock"]}, correction demandée: ${parsedQty}.`,
+      const required = parsedQty < 0 ? -parsedQty : 0;
+      const updated = await tx.article.updateMany({
+        where: { id: parsedId, ["quantitéStock"]: { gte: required } },
+        data: { ["quantitéStock"]: { increment: parsedQty } },
       });
-    }
+      if (updated.count === 0) {
+        const err = new Error(
+          `Stock insuffisant. Stock actuel: ${article["quantitéStock"]}, correction demandée: ${parsedQty}.`,
+        );
+        err.httpStatus = 400;
+        throw err;
+      }
 
-    // Transaction : mise à jour stock + trace mouvement
-    const [mouvement] = await prisma.$transaction([
-      prisma.mouvementStock.create({
+      return tx.mouvementStock.create({
         data: {
           articleId: parsedId,
           articleNom: article.nom,
@@ -86,15 +90,14 @@ router.post("/", authMiddleware, adminMiddleware, async (req, res) => {
           quantite: parsedQty,
           motif: String(motif).trim(),
         },
-      }),
-      prisma.article.update({
-        where: { id: parsedId },
-        data: { ["quantitéStock"]: { increment: parsedQty } },
-      }),
-    ]);
+      });
+    });
 
     res.status(201).json(mouvement);
   } catch (err) {
+    if (err.httpStatus) {
+      return res.status(err.httpStatus).json({ error: err.message });
+    }
     console.error("Erreur correction stock:", err);
     res.status(500).json({ error: "Erreur lors de la correction du stock." });
   }
@@ -155,13 +158,17 @@ router.post(
         if (!article) continue;
         const theorique = article["quantitéStock"];
         const reel = parseInt(l.stockReel, 10);
-        if (isNaN(reel) || reel < 0) {
+        const reelStr = String(l.stockReel).trim();
+        if (isNaN(reel) || String(reel) !== reelStr || reel < 0) {
           invalidItems.push({
             type: "article",
             id,
             nom: article.nom,
             stockReel: l.stockReel,
-            raison: isNaN(reel) ? "valeur non numérique" : "valeur négative",
+            raison:
+              isNaN(reel) || String(reel) !== reelStr
+                ? "valeur non numérique"
+                : "valeur négative",
           });
           continue;
         }
@@ -181,13 +188,17 @@ router.post(
         if (!emballage) continue;
         const theorique = emballage.quantiteStock;
         const reel = parseInt(l.stockReel, 10);
-        if (isNaN(reel) || reel < 0) {
+        const reelStr = String(l.stockReel).trim();
+        if (isNaN(reel) || String(reel) !== reelStr || reel < 0) {
           invalidItems.push({
             type: "emballage",
             id,
             targetLabel: `${emballage.type} cap.${emballage.capacite}`,
             stockReel: l.stockReel,
-            raison: isNaN(reel) ? "valeur non numérique" : "valeur négative",
+            raison:
+              isNaN(reel) || String(reel) !== reelStr
+                ? "valeur non numérique"
+                : "valeur négative",
           });
           continue;
         }
