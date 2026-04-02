@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { createUser } from "../api/userService";
+import LoginRegisterFooter from "../components/LoginRegisterFooter";
 
 function RegisterPage() {
   const navigate = useNavigate(); // Hook pour la navigation programmatique
@@ -12,11 +13,12 @@ function RegisterPage() {
     role: "SELLER",
   });
   const [error, setError] = useState(""); // État pour stocker les messages d'erreur
-  const [success, setSuccess] = useState(null); //
+  const [success, setSuccess] = useState(null); // État pour stocker les informations de l'utilisateur créé avec succès
   const [loading, setLoading] = useState(false); // État pour indiquer si une requête est en cours
 
   // Seul un admin peut accéder à cette page, on vérifie donc que l'utilisateur connecté est un admin
   const user = useMemo(() => {
+    // useMemo pour éviter de parser le localStorage à chaque rendu, seulement lors du chargement initial de la page
     try {
       return JSON.parse(localStorage.getItem("user") || "{}");
     } catch {
@@ -25,12 +27,14 @@ function RegisterPage() {
   }, []);
 
   useEffect(() => {
+    // Redirige vers le dashboard si l'utilisateur n'est pas un admin
     if (user.role !== "ADMIN") {
       navigate("/", { replace: true });
     }
   }, [user, navigate]);
 
   if (user.role !== "ADMIN") {
+    // Affiche une page vide ou un message d'erreur si l'utilisateur n'est pas un admin (au cas où le useEffect n'aurait pas encore redirigé)
     return null;
   }
 
@@ -54,7 +58,7 @@ function RegisterPage() {
         form.role,
       ); // Appelle la fonction de création d'utilisateur avec les données du formulaire
       setSuccess(newUser);
-      setForm({ nom: "", prenom: "", alias: "", mdp: "", role: "SELLER" });
+      setForm({ nom: "", prenom: "", alias: "", mdp: "", role: "SELLER" }); // Réinitialise le formulaire après une création réussie
     } catch (error) {
       setError(
         error.response?.data?.error || "Impossible de créer l'utilisateur",
@@ -188,6 +192,7 @@ function RegisterPage() {
             </div>
           </form>
         </div>
+        <LoginRegisterFooter />
       </div>
     </div>
   );

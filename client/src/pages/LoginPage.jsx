@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { login } from "../api/userService";
+import LoginRegisterFooter from "../components/LoginRegisterFooter";
 
 function LoginPage() {
   const navigate = useNavigate(); // Hook pour la navigation programmatique
@@ -100,6 +101,7 @@ function LoginPage() {
             </div>
           </form>
         </div>
+        <LoginRegisterFooter />
       </div>
     </div>
   );

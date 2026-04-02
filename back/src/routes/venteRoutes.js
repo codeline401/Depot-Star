@@ -399,7 +399,7 @@ router.post("/", authMiddleware, async (req, res) => {
           }
         }
 
-        return tx.vente.create({
+        const newVente = await tx.vente.create({
           data: {
             total: totalNet,
             consigneRendue,
@@ -416,6 +416,21 @@ router.post("/", authMiddleware, async (req, res) => {
           },
           include: { client: true, lignes: true, cageotsRetour: true },
         });
+
+        // ── Traçabilité : mouvement de stock par article vendu ────────────────
+        for (const l of venteLignesData) {
+          await tx.mouvementStock.create({
+            data: {
+              articleId: l.articleId,
+              articleNom: l.articleNom,
+              type: "VENTE",
+              quantite: -l.quantite, // sortie = négatif
+              refId: newVente.id,
+            },
+          });
+        }
+
+        return newVente;
       },
       { timeout: 20000 },
     );
